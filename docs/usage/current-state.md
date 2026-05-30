@@ -1,12 +1,12 @@
-# Current state (pre-alpha, as of M7)
+# Current state (pre-alpha, as of M8)
 
 An honest snapshot of what GoDB can and can't do right now, refreshed every milestone. This page exists so a reader doesn't have to scan commit history or trial-and-error their way into the API surface.
 
 If you're new here, read [`README.md`](README.md) in this directory first. It frames the project status; this page goes one level deeper.
 
-## What works internally
+## What works
 
-Seven internal packages do real work today. None of them are exposed via `pkg/godb` yet (M8). All of them are exercised by tests under `make test` and `make race`.
+As of M8, `pkg/godb` exposes the engine through a stable public Go API. Internally, nine packages collaborate; all exercised by `make test` and `make race`. The [embedded-API tutorial](embedded-api.md) shows the public-facing path. The internal layers below are documented here for readers who want a map of how the engine fits together.
 
 ### `internal/storage` — the pager
 
@@ -72,26 +72,68 @@ Supported grammar: `CREATE TABLE`, `INSERT INTO`, `SELECT ... [WHERE column = ex
 
 Documented in [ADR-0015](../adr/0015-sql-grammar-scope.md) and walked through in [chapter 09](../book/09-milestone-7-sql-parser.md).
 
-### `internal/buffer`, `internal/planner`, `internal/exec`, `internal/tx`, `internal/engine`, `pkg/godb`, `pkg/driver`
+### `internal/planner` — AST → executable plan
 
-All empty placeholders with `.gitkeep` files. They get filled in by future milestones in roughly that order.
+Five plan types (`CreateTablePlan`, `InsertPlan`, `TableScanPlan`, `PrimaryKeyLookupPlan`, `ProjectionPlan`) and a `Planner` that consults the catalog for schema validation:
+
+- `planner.New(catalog) *Planner`.
+- `planner.Plan(stmt) (Plan, error)` — dispatches on statement kind. Resolves table + column names; enforces v0.1 limitations (single INTEGER PK, WHERE only on the primary key); rejects unknown tables/columns up front so the executor never sees an invalid plan.
+
+`SELECT *` produces a bare `TableScanPlan` (no wrapping projection). Named columns wrap with `ProjectionPlan`. WHERE on non-PK columns returns `ErrWhereOnlyPrimaryKey` — the parser is permissive, the planner narrows.
+
+### `internal/exec` — runs plans against the catalog + btree
+
+Two entry points:
+
+- `executor.Run(plan, args, sqlSrc) Result` — for CreateTable + Insert. Returns `Result{RowsAffected, LastInsertID}`.
+- `executor.RunQuery(plan, args) *Rows` — for TableScan, PKLookup, Projection. Returns a materialized `Rows{Columns, Values}`.
+
+Parameter binding follows strict rules: `int/int32/int64 → KindInteger`, `string → KindText`, `bool → KindBoolean`, `nil → KindNull`. No implicit conversions. `bindArgs` consumes `?` placeholders in occurrence order.
+
+After every INSERT, the executor compares `tree.RootPageID()` to the catalog's stored root; on drift, calls `catalog.SetTableRoot` which now (via [ADR-0018](../adr/0018-btree-update-cell-same-size.md)) actually persists. Rows materialization is documented in [ADR-0016](../adr/0016-rows-materialization.md); streaming arrives in v0.2.
+
+### `pkg/godb` — the public Go API
+
+The stable surface application code imports:
+
+- `godb.Open(path, opts...) (*DB, error)`, `db.Close()`.
+- `db.Exec(ctx, sql, args...) (Result, error)` — CREATE / INSERT.
+- `db.Query(ctx, sql, args...) (*Rows, error)` — SELECT.
+- `rows.Next() bool`, `rows.Scan(dest...) error`, `rows.Columns()`, `rows.Err()`, `rows.Close()`.
+- `db.Begin(ctx) (*Tx, error)` — always returns `ErrTransactionsUnsupported` in v0.1 (see [ADR-0017](../adr/0017-no-transactions-in-v0-1.md)).
+- 17 exported sentinel errors so callers dispatch via `errors.Is(err, godb.ErrXxx)`.
+
+Walked through end-to-end in [chapter 10](../book/10-milestone-8-public-api.md). Full tutorial in [embedded-api.md](embedded-api.md).
+
+### `internal/buffer`, `internal/tx`, `internal/engine`, `pkg/driver`
+
+Empty placeholders. The buffer pool and transactions arrive in v0.2; the `database/sql/driver` wrapper at M9; `internal/engine` may be removed if it remains unused by M11.
 
 ## What is *not* yet usable
 
 A short and honest list:
 
-- **No public Go API.** `pkg/godb` is empty. Importing the engine requires forking or a `replace` directive against a local clone.
-- **No SQL.** No lexer, no parser, no `CREATE TABLE` / `INSERT` / `SELECT`.
-- **No CLI subcommands.** `./godb` prints a banner and exits.
-- **No multi-table support.** A database has exactly one B+tree until M6's catalog.
-- **No transactions, no rollback, no atomic splits.** A crash mid-Insert can leave the tree inconsistent. v0.2's rollback journal closes this.
-- **No deletion, no update in place.** v0.2.
-- **No buffer pool.** Every read/write hits disk through the pager directly. v0.2.
-- **No secondary indexes, no foreign keys, no constraints beyond per-column type/nullability.** v0.2+ and later.
+- **No transactions.** `db.Begin` returns `ErrTransactionsUnsupported`; writes are autocommit-only. v0.2 with the rollback journal closes this.
+- **No `UPDATE` / `DELETE` / `ALTER TABLE` / `DROP TABLE`.** Parser + planner explicitly reject. v0.2+.
+- **No `JOIN` / `GROUP BY` / `ORDER BY` / `LIMIT` / `HAVING`.** v0.3+.
+- **No non-primary-key `WHERE`.** Planner returns `ErrWhereOnlyPrimaryKey`. v0.2 adds `TableScan + Filter`.
+- **No compound `WHERE` with `AND` / `OR`.** Parser rejects.
+- **No comparison operators other than `=`.** v0.2.
+- **No CLI subcommands.** `./godb` prints a banner and exits; M10 adds `exec`, `query`, `inspect`, `check`, the interactive shell.
+- **No `database/sql/driver` wrapper.** M9 adds it; until then, use `pkg/godb` directly.
+- **No buffer pool.** Every read/write hits disk through the pager. v0.2.
+- **No streaming Rows.** Result sets are materialized in memory. v0.2 with the buffer pool + btree cursor.
+- **No prepared statements.** Every Exec/Query re-parses. v0.2 if there's a real need.
+- **No implicit Scan conversions.** Strict types in v0.1; `database/sql`-style coercions could come in v0.2+.
+- **No secondary indexes, no foreign keys, no `UNIQUE` / `CHECK` / `DEFAULT` / `REFERENCES`.** v0.2+ and later.
 
-## Educational tour: an end-to-end loop, today
+## How you actually use it: the public API
 
-For someone reading the code who wants a tangible "the whole engine working" example, this is the smallest end-to-end snippet. **Not a recommendation to use GoDB this way in production** — internals can change between milestones — but a useful map of where each package fits.
+The right path is `pkg/godb`. The full tutorial — Open / Exec / Query / Scan, parameter binding rules, scan type rules, error handling, transactions — is in [`embedded-api.md`](embedded-api.md). The 40-line "create + insert + close + reopen + query" example at the bottom of that doc is the demo to run if you want to verify the engine works on your machine.
+
+## For the curious: the internal layers, end-to-end
+
+This snippet does the same thing as the embedded API tutorial but calls into `internal/` packages directly. **Not a recommendation for production use** — internals can change without warning between milestones — but a useful map for readers who want to see how the layers compose.
 
 ```go
 package main
@@ -195,18 +237,18 @@ func main() {
 
 What this snippet shows:
 
-- The six layers (storage / record / btree / catalog / sql / your code) compose without help from any glue not in the engine.
-- The SQL `CREATE TABLE` is parsed into a typed AST and converted to a `record.Schema` via the parser's `ColumnDefsToSchema` helper. No magic strings between the SQL the user wrote and what the catalog stores.
-- Persistence works: kill the program, re-run it, and step 3's `LookupTable` finds the existing `users` table; step 4 reopens its tree by `RootPageID`.
+- The seven internal layers (storage / record / btree / catalog / sql / planner / exec) compose without glue. The public `pkg/godb.DB.Exec`/`Query` does the same orchestration, just hidden behind a simpler surface.
 - The `Tree.Scan` callback is invariant under splits: even if `Insert` had triggered ten splits between step 4 and step 6, `Scan` would still yield every row in key order via the leaf chain.
 - Adding a `posts` table is one more parse + `cat.CreateTable("posts", ...)` call. Each table gets its own B+tree, all in the same `.godb` file, all surviving a close/reopen via the catalog.
 
 ## What just changed
 
-The most recent milestone is **M7 — SQL lexer + parser**. Chapter to read: [chapter 09](../book/09-milestone-7-sql-parser.md). The engine can now read SQL into a typed AST. The grammar is deliberately small ([ADR-0015](../adr/0015-sql-grammar-scope.md)): `CREATE TABLE`, `INSERT`, `SELECT ... [WHERE col = expr]`. Everything else is explicitly rejected with `ErrUnsupportedSQL` so a `JOIN` or `UPDATE` produces a clear message instead of a confusing syntax error.
+The most recent milestone is **M8 — public Go API + planner + executor**. Chapter to read: [chapter 10](../book/10-milestone-8-public-api.md). The engine now exposes a stable Go API: `godb.Open` → `db.Exec`/`db.Query` → `Rows.Next`/`Scan`, end-to-end. The planner ([`internal/planner`](../../internal/planner/)) validates SQL against the catalog and produces typed plans; the executor ([`internal/exec`](../../internal/exec/)) runs them.
 
-What this milestone does NOT do: execute the parsed SQL. M9 closes that loop.
+M8 also closed the M6 SetTableRoot persistence gap via a small `btree.UpdateCellSameSize` primitive ([ADR-0018](../adr/0018-btree-update-cell-same-size.md)). Table trees that grow new roots via splits now persist their new RootPageID — so a table you insert 10,000 rows into survives close/reopen correctly.
+
+Three new ADRs landed alongside the chapter: [ADR-0016](../adr/0016-rows-materialization.md) (rows are materialized in v0.1), [ADR-0017](../adr/0017-no-transactions-in-v0-1.md) (Begin returns ErrTransactionsUnsupported), [ADR-0018](../adr/0018-btree-update-cell-same-size.md).
 
 ## What's next
 
-**M8 — Public Go API.** Wraps everything we have (storage, record, btree, catalog, sql) into the stable user-facing surface: `godb.Open(path)`, `db.Exec(ctx, sql, args...)`, `db.Query(ctx, sql, args...)`, `db.Begin(ctx)`, plus `Rows.Next` / `Rows.Scan`. This is the milestone where "use godb" stops being a future tense.
+**M9 — polish + `database/sql/driver` + integration tests.** Optional `sql.Open("godb", path)` wrapper so users can plug GoDB into the broader `database/sql` ecosystem; multi-table integration scenarios; better error context (wrap with source SQL + statement number for debugging). Sets up M10 (CLI) and M11 (v0.1 release).

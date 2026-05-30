@@ -23,6 +23,9 @@ ADRs are short, dated, immutable documents. They are not the same as the [PRD](.
 | 0013 | [`PageHeader.RightSibling` carries dual semantics](0013-rightsibling-dual-semantics.md)       | Accepted |
 | 0014 | [Catalog object encoding uses a custom binary format](0014-catalog-row-encoding.md)           | Accepted |
 | 0015 | [SQL grammar is deliberately small; parser is hand-written recursive descent](0015-sql-grammar-scope.md) | Accepted |
+| 0016 | [`Rows` is materialized in v0.1; streaming arrives in v0.2](0016-rows-materialization.md) | Accepted |
+| 0017 | [Transactions are not supported in GoDB v0.1](0017-no-transactions-in-v0-1.md) | Accepted |
+| 0018 | [`btree.UpdateCellSameSize` — same-size in-place cell update](0018-btree-update-cell-same-size.md) | Accepted |
 
 ## How to add an ADR
 

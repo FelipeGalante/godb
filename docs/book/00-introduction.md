@@ -35,11 +35,11 @@ So the reader-facing index is:
 | Multi-page B+tree | M5 | [07](07-milestone-5-multi-page-btree.md) | [`internal/btree/tree.go`](../../internal/btree/tree.go), [`internal/btree/internal.go`](../../internal/btree/internal.go) |
 | Catalog | M6 | [08](08-milestone-6-catalog.md) | [`internal/catalog/`](../../internal/catalog/) |
 | SQL parser | M7 | [09](09-milestone-7-sql-parser.md) | [`internal/sql/`](../../internal/sql/) |
-| Public API | M8 | (next) | (next) |
-| Executor | M9 | (later) | (later) |
+| Public API + Planner + Executor | M8 | [10](10-milestone-8-public-api.md) | [`pkg/godb/`](../../pkg/godb/) + [`internal/planner/`](../../internal/planner/) + [`internal/exec/`](../../internal/exec/) |
+| Polish + database/sql driver | M9 | (next) | (next) |
 | CLI | M10 | (later) | (later) |
 
-When you finish chapter 09, you'll have read about everything that exists today. The rest of the book grows with the code.
+When you finish chapter 10, you'll have read about everything that exists today. The rest of the book grows with the code.
 
 ## How chapters are structured
 
