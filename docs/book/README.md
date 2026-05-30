@@ -19,8 +19,9 @@ A chapter-per-milestone narrative for the GoDB project. Read it alongside the co
 | 03 | [Pages, Files, and Durability (M1)](03-milestone-1-pager.md) | Fixed-size pages, file headers, `pread`/`pwrite`, the pager pattern, what `fsync` really does |
 | 04 | [Records: Variable-Length Typed Values (M2)](04-milestone-2-records.md) | Tagged unions, value/row encoding, NULL semantics, schema as a contract |
 | 05 | [Slotted Pages: Many Records on One Page (M3)](05-milestone-3-slotted-pages.md) | The variable-length packing problem, slotted layout, cell directories, the "page full" contract |
+| 06 | [The Smallest B+tree: One Leaf, One Root (M4)](06-milestone-4-b-tree-single-page.md) | B-trees and B+trees from first principles, height-zero trees, the Tree API that survives into M5+, where the root id lives |
 
-Chapters for milestones 4 through 11 land as those milestones land.
+Chapters for milestones 5 through 11 land as those milestones land.
 
 ## Conventions
 
@@ -32,4 +33,4 @@ Chapters for milestones 4 through 11 land as those milestones land.
 
 ## Status
 
-This book is a living document. Each milestone adds at least one chapter. The introduction and chapters 01–05 cover M0 through M3 as of 2026-05-30.
+This book is a living document. Each milestone adds at least one chapter. The introduction and chapters 01–06 cover M0 through M4 as of 2026-05-30.

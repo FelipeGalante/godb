@@ -31,15 +31,15 @@ So the reader-facing index is:
 | Pager | M1 | [03](03-milestone-1-pager.md) | [`internal/storage/`](../../internal/storage/) |
 | Records | M2 | [04](04-milestone-2-records.md) | [`internal/record/`](../../internal/record/) |
 | Slotted page | M3 | [05](05-milestone-3-slotted-pages.md) | [`internal/btree/`](../../internal/btree/) |
-| Single-page B+tree | M4 | (next) | (next) |
-| Multi-page B+tree | M5 | (later) | (later) |
+| Single-page B+tree | M4 | [06](06-milestone-4-b-tree-single-page.md) | [`internal/btree/tree.go`](../../internal/btree/tree.go) |
+| Multi-page B+tree | M5 | (next) | (next) |
 | Catalog | M6 | (later) | (later) |
 | SQL parser | M7 | (later) | (later) |
 | Executor | M9 | (later) | (later) |
 | Public API | M8 | (later) | (later) |
 | CLI | M10 | (later) | (later) |
 
-When you finish chapter 05, you'll have read about everything that exists today. The rest of the book grows with the code.
+When you finish chapter 06, you'll have read about everything that exists today. The rest of the book grows with the code.
 
 ## How chapters are structured
 
