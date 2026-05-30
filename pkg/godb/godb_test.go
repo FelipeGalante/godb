@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -327,6 +328,80 @@ func TestQueryRejectsCreateTable(t *testing.T) {
 	_, err := db.Query(ctx(), `CREATE TABLE t (id INTEGER PRIMARY KEY)`)
 	if err == nil {
 		t.Fatal("Query of CREATE TABLE should error")
+	}
+}
+
+func TestSyncIsIdempotentAndUsable(t *testing.T) {
+	db, _ := tempDB(t)
+	if _, err := db.Exec(ctx(), `CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`); err != nil {
+		t.Fatalf("CREATE: %v", err)
+	}
+	for i := int64(1); i <= 10; i++ {
+		if _, err := db.Exec(ctx(), `INSERT INTO t VALUES (?, ?)`, i, "x"); err != nil {
+			t.Fatalf("INSERT(%d): %v", i, err)
+		}
+	}
+	// Sync mid-life.
+	if err := db.Sync(); err != nil {
+		t.Fatalf("first Sync: %v", err)
+	}
+	// Idempotent.
+	if err := db.Sync(); err != nil {
+		t.Fatalf("second Sync: %v", err)
+	}
+	// More writes still work afterwards.
+	if _, err := db.Exec(ctx(), `INSERT INTO t VALUES (?, ?)`, int64(11), "y"); err != nil {
+		t.Fatalf("INSERT after Sync: %v", err)
+	}
+}
+
+func TestSyncAfterCloseReturnsErrDatabaseClosed(t *testing.T) {
+	db, _ := tempDB(t)
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := db.Sync(); !errors.Is(err, ErrDatabaseClosed) {
+		t.Errorf("err = %v, want ErrDatabaseClosed", err)
+	}
+}
+
+func TestStatementErrorWrapsSQLAndPreservesSentinel(t *testing.T) {
+	db, _ := tempDB(t)
+	_, err := db.Exec(ctx(), `UPDATE users SET name = 'x'`)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	// errors.Is dispatches through the wrap.
+	if !errors.Is(err, ErrUnsupportedSQL) {
+		t.Errorf("errors.Is(err, ErrUnsupportedSQL) = false; want true")
+	}
+	// errors.As finds the StatementError and exposes the SQL.
+	var se *StatementError
+	if !errors.As(err, &se) {
+		t.Fatalf("errors.As(*StatementError) = false; err = %v", err)
+	}
+	if se.SQL != `UPDATE users SET name = 'x'` {
+		t.Errorf("StatementError.SQL = %q, want the original input", se.SQL)
+	}
+	// The Error() string should include the SQL.
+	if !strings.Contains(err.Error(), "UPDATE users") {
+		t.Errorf("error message missing SQL: %q", err.Error())
+	}
+}
+
+func TestSQLErrorAliasIsUsable(t *testing.T) {
+	db, _ := tempDB(t)
+	// A syntax error (parser-side) — has a Position attached.
+	_, err := db.Exec(ctx(), `CREATE TABLE t (id INTEGER PRIMARY KEY,`)
+	if err == nil {
+		t.Fatal("expected syntax error")
+	}
+	var sqlErr *SQLError
+	if !errors.As(err, &sqlErr) {
+		t.Fatalf("errors.As(*godb.SQLError) = false; err = %v", err)
+	}
+	if sqlErr.Pos.Line < 1 || sqlErr.Pos.Column < 1 {
+		t.Errorf("Pos = %+v, want non-zero line+column", sqlErr.Pos)
 	}
 }
 

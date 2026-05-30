@@ -39,18 +39,18 @@ func (db *DB) Query(ctx context.Context, sqlSrc string, args ...any) (*Rows, err
 	}
 	stmt, err := sql.Parse(sqlSrc)
 	if err != nil {
-		return nil, translateSQLErr(err)
+		return nil, wrapStatementErr(sqlSrc, translateSQLErr(err))
 	}
 	if _, isSelect := stmt.(*sql.SelectStatement); !isSelect {
-		return nil, fmt.Errorf("godb.Query: only SELECT statements are supported; use Exec for DDL/DML")
+		return nil, wrapStatementErr(sqlSrc, fmt.Errorf("godb.Query: only SELECT statements are supported; use Exec for DDL/DML"))
 	}
 	plan, err := db.planner.Plan(stmt)
 	if err != nil {
-		return nil, mapInternalErr(err)
+		return nil, wrapStatementErr(sqlSrc, mapInternalErr(err))
 	}
 	execRows, err := db.executor.RunQuery(plan, args)
 	if err != nil {
-		return nil, mapInternalErr(err)
+		return nil, wrapStatementErr(sqlSrc, mapInternalErr(err))
 	}
 	return newRows(execRows), nil
 }

@@ -35,15 +35,15 @@ func (db *DB) Exec(ctx context.Context, sqlSrc string, args ...any) (Result, err
 	}
 	stmt, err := sql.Parse(sqlSrc)
 	if err != nil {
-		return Result{}, translateSQLErr(err)
+		return Result{}, wrapStatementErr(sqlSrc, translateSQLErr(err))
 	}
 	plan, err := db.planner.Plan(stmt)
 	if err != nil {
-		return Result{}, mapInternalErr(err)
+		return Result{}, wrapStatementErr(sqlSrc, mapInternalErr(err))
 	}
 	res, err := db.executor.Run(plan, args, sqlSrc)
 	if err != nil {
-		return Result{}, mapInternalErr(err)
+		return Result{}, wrapStatementErr(sqlSrc, mapInternalErr(err))
 	}
 	return Result{
 		RowsAffected: res.RowsAffected,

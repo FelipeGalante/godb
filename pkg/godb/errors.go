@@ -9,7 +9,63 @@
 // (later) deliverable; for now godb.DB is its own type.
 package godb
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+
+	internalsql "github.com/felipegalante/godb/internal/sql"
+)
+
+// SQLError is the parse-time / planner-time error type carrying source
+// position info (Line, Column). It is type-aliased from internal/sql
+// so callers can errors.As(err, &godb.SQLError{}) without importing
+// internal/sql.
+//
+// Use:
+//
+//	var sqlErr *godb.SQLError
+//	if errors.As(err, &sqlErr) {
+//	    fmt.Printf("error at line %d, column %d: %s\n",
+//	        sqlErr.Pos.Line, sqlErr.Pos.Column, sqlErr.Message)
+//	}
+type SQLError = internalsql.SQLError
+
+// StatementError wraps another godb error with the SQL text that
+// produced it. Returned by DB.Exec and DB.Query when the underlying
+// operation fails, so log lines are self-contained (you don't have
+// to correlate the error with the call site).
+//
+// errors.Is and errors.As traverse through to the wrapped error, so
+// dispatch by sentinel still works:
+//
+//	if errors.Is(err, godb.ErrUnsupportedSQL) { ... }
+//
+// To pull the SQL out specifically:
+//
+//	var se *godb.StatementError
+//	if errors.As(err, &se) { fmt.Println("failed SQL:", se.SQL) }
+type StatementError struct {
+	SQL string
+	Err error
+}
+
+func (e *StatementError) Error() string {
+	return fmt.Sprintf("godb: error in %q: %v", e.SQL, e.Err)
+}
+
+// Unwrap returns the wrapped error so errors.Is and errors.As work
+// transitively through StatementError.
+func (e *StatementError) Unwrap() error { return e.Err }
+
+// wrapStatementErr produces a *StatementError if err is non-nil,
+// otherwise returns nil. Used by Exec/Query to attach the source SQL
+// to any failure.
+func wrapStatementErr(sql string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &StatementError{SQL: sql, Err: err}
+}
 
 // All errors returned from godb wrap (via errors.Is) one of these
 // sentinels. Callers should use errors.Is(err, godb.ErrXxx) for

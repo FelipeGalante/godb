@@ -75,6 +75,27 @@ func (db *DB) Close() error {
 	return db.pager.Close()
 }
 
+// Sync flushes pending writes to disk without closing the database.
+// Useful for long-running processes that want a durability
+// checkpoint between operations — without it, writes are durable only
+// after Close.
+//
+// Sync refreshes the database header's catalog root id (in case
+// catalog operations grew the catalog tree's root) and then fsyncs
+// the underlying file. Returns ErrDatabaseClosed if Close has been
+// called.
+func (db *DB) Sync() error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if err := db.guardOpen(); err != nil {
+		return err
+	}
+	if err := db.catalog.Sync(); err != nil {
+		return fmt.Errorf("godb.Sync: %w", err)
+	}
+	return nil
+}
+
 // guardOpen returns ErrDatabaseClosed if Close has been called.
 // Callers should defer-unlock the returned closure (or call db.mu
 // themselves). For convenience callers can use db.withLock(func()...).
