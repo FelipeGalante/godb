@@ -193,36 +193,43 @@ func (c *Catalog) ListTables() []*TableInfo {
 	return out
 }
 
-// SetTableRoot updates a table's RootPageID in the catalog. The
-// (future) executor calls this after a table's B+tree grows its root
-// via a split — table root ids drift when M5 splits a root, and the
-// catalog row must be re-written to keep them in sync on reopen.
+// SetTableRoot updates a table's RootPageID in the catalog and
+// persists the change in the on-disk catalog row. The executor calls
+// this after a table's B+tree grows its root via a split — table
+// root ids drift when M5 splits a root, and the catalog row must be
+// re-written to keep them in sync on reopen.
 //
 // Returns ErrTableNotFound if no such table.
+//
+// As of M8 this is a real persistent operation: it re-encodes the
+// catalog object with the new RootPageID and calls
+// tree.UpdateCellSameSize on the catalog tree. The encoded size is
+// invariant because only the fixed-width 8-byte RootPageID field
+// changed (the catalog row format places RootPageID at a fixed offset
+// per ADR-0014); the same-size constraint of UpdateCellSameSize
+// (ADR-0018) is satisfied by construction.
 func (c *Catalog) SetTableRoot(name string, rootID storage.PageID) error {
 	info, ok := c.byName[name]
 	if !ok {
 		return fmt.Errorf("%w: %q", ErrTableNotFound, name)
 	}
-	// The catalog tree does not support in-place cell updates yet
-	// (M3/M5 only added insert + sorted directory; no DeleteCell or
-	// UpdateCell). v0.2 will revisit this whole story with deletion
-	// + atomic transactions. For now we rebuild the affected cell by:
-	//
-	//   1. mutating the in-memory cache
-	//   2. re-encoding the object
-	//   3. re-inserting under the same key — which would fail with
-	//      ErrDuplicateKey.
-	//
-	// To work around this for M6, we accept that SetTableRoot updates
-	// the in-memory cache only and leaves the on-disk row unchanged
-	// until the next time the table is recreated. Document this gap
-	// as known; the v0.2 journal + UpdateCell story will close it.
-	//
-	// In M6's test cases this only matters when callers want
-	// SetTableRoot to persist across reopen — and that test is
-	// explicitly out of scope until we have UpdateCell. The
-	// behavioral test below pins the in-memory effect only.
+	// Re-encode the object with the new RootPageID.
+	obj := &Object{
+		Type:       ObjectTypeTable,
+		Name:       info.Name,
+		RootPageID: rootID,
+		SQL:        info.SQL,
+		Schema:     info.Schema,
+	}
+	payload, err := EncodeObject(obj)
+	if err != nil {
+		return fmt.Errorf("catalog.SetTableRoot: encode: %w", err)
+	}
+	// Persist via the btree's same-size update primitive.
+	if err := c.tree.UpdateCellSameSize(info.ID, payload); err != nil {
+		return fmt.Errorf("catalog.SetTableRoot: persist: %w", err)
+	}
+	// Update the in-memory cache.
 	info.RootPageID = rootID
 	return nil
 }

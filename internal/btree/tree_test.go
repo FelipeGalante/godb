@@ -726,6 +726,62 @@ func TestOpenWrongPageTypeReturnsTypedError(t *testing.T) {
 	wantTypedError("Get", getErr)
 }
 
+func TestTreeUpdateCellSameSizeDescends(t *testing.T) {
+	// Build a multi-leaf tree, then update a cell that lives in a
+	// non-root leaf. Verifies the Tree.UpdateCellSameSize descent
+	// reaches the correct leaf.
+	p := newPager(t)
+	tr, _ := Create(p)
+	const payloadLen = 200
+	payload := bytes.Repeat([]byte{0xAA}, payloadLen)
+	// Insert enough cells to force at least one split.
+	for k := uint64(1); k <= 30; k++ {
+		if err := tr.Insert(k, payload); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+	}
+	if err := tr.Validate(); err != nil {
+		t.Fatalf("Validate after inserts: %v", err)
+	}
+	// Update an arbitrary mid-range key.
+	newPayload := bytes.Repeat([]byte{0xFE}, payloadLen)
+	if err := tr.UpdateCellSameSize(15, newPayload); err != nil {
+		t.Fatalf("UpdateCellSameSize(15): %v", err)
+	}
+	// Confirm via Get.
+	got, found, err := tr.Get(15)
+	if err != nil || !found {
+		t.Fatalf("Get(15) after update: found=%v err=%v", found, err)
+	}
+	if !bytes.Equal(got, newPayload) {
+		t.Errorf("Get(15) returned old payload")
+	}
+	// Neighbors unchanged.
+	for _, k := range []uint64{1, 14, 16, 30} {
+		got, _, _ := tr.Get(k)
+		if !bytes.Equal(got, payload) {
+			t.Errorf("Get(%d) after Update(15) mismatch", k)
+		}
+	}
+	if err := tr.Validate(); err != nil {
+		t.Errorf("Validate after update: %v", err)
+	}
+}
+
+func TestTreeUpdateCellSameSizeKeyNotFound(t *testing.T) {
+	p := newPager(t)
+	tr, _ := Create(p)
+	for k := uint64(1); k <= 5; k++ {
+		if err := tr.Insert(k, []byte{byte(k)}); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+	}
+	err := tr.UpdateCellSameSize(999, []byte{0xFE})
+	if !errors.Is(err, ErrKeyNotFound) {
+		t.Errorf("err = %v, want ErrKeyNotFound", err)
+	}
+}
+
 func TestValidateAfterRandomInserts(t *testing.T) {
 	// Property-style: many random unique inserts; Validate clean throughout.
 	p := newPager(t)

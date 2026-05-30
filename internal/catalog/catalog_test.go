@@ -220,26 +220,51 @@ func TestPersistAcrossReopen(t *testing.T) {
 	}
 }
 
-func TestSetTableRootUpdatesInMemoryView(t *testing.T) {
-	// M6 caveat: SetTableRoot updates only the in-memory cache. Persisting
-	// the change would require a btree-level UpdateCell primitive (no such
-	// thing today), which the plan deliberately keeps out of M6 scope.
-	// v0.2's journal + UpdateCell story closes this gap before the
-	// executor (M9) starts mutating table trees.
-	p := newPager(t)
-	cat, _ := Open(p)
-	info, _ := cat.CreateTable("users", usersSchema(), "")
-	origRoot := info.RootPageID
+func TestSetTableRootPersistsAcrossReopen(t *testing.T) {
+	// Closed in M8 (commit feat(btree+catalog): same-size cell update).
+	// Persistence works via btree.Tree.UpdateCellSameSize — the
+	// re-encoded catalog object has identical encoded length because
+	// only the fixed-width 8-byte RootPageID field changes.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "catalog.godb")
 
+	p := openPagerAt(t, path, true)
+	cat, _ := Open(p)
+	info, err := cat.CreateTable("users", usersSchema(), "")
+	if err != nil {
+		t.Fatalf("CreateTable: %v", err)
+	}
+	origRoot := info.RootPageID
+	if origRoot == 999 {
+		t.Fatalf("test setup confused: initial root happened to be the test sentinel 999")
+	}
 	if err := cat.SetTableRoot("users", storage.PageID(999)); err != nil {
 		t.Fatalf("SetTableRoot: %v", err)
 	}
-	got, _ := cat.LookupTable("users")
-	if got.RootPageID != 999 {
-		t.Errorf("RootPageID = %d, want 999 (in-memory update)", got.RootPageID)
+	// In-memory effect is immediate.
+	if got, _ := cat.LookupTable("users"); got.RootPageID != 999 {
+		t.Errorf("RootPageID immediately after Set = %d, want 999", got.RootPageID)
 	}
-	if origRoot == 999 {
-		t.Fatalf("test setup confused: initial root happened to be 999")
+	if err := cat.Sync(); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if err := p.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// Reopen and confirm the new RootPageID survived.
+	p2 := openPagerAt(t, path, false)
+	t.Cleanup(func() { _ = p2.Close() })
+	cat2, err := Open(p2)
+	if err != nil {
+		t.Fatalf("reopen Open: %v", err)
+	}
+	got, err := cat2.LookupTable("users")
+	if err != nil {
+		t.Fatalf("LookupTable after reopen: %v", err)
+	}
+	if got.RootPageID != 999 {
+		t.Errorf("RootPageID after reopen = %d, want 999", got.RootPageID)
 	}
 }
 

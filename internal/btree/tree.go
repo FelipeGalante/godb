@@ -165,6 +165,40 @@ func (t *Tree) Get(key uint64) ([]byte, bool, error) {
 	}
 }
 
+// UpdateCellSameSize descends to the leaf that should contain key and
+// updates the cell's payload in place. Returns ErrKeyNotFound if the
+// key isn't in the tree, or ErrSizeChanged if the new payload's
+// encoded size differs from the existing cell's.
+//
+// The primary caller is internal/catalog.SetTableRoot, which
+// re-encodes a catalog row with only the fixed-width RootPageID
+// changed; by construction the encoded sizes match. See ADR-0018 for
+// the same-size constraint's rationale.
+func (t *Tree) UpdateCellSameSize(key uint64, newPayload []byte) error {
+	pageID := t.rootID
+	for {
+		pg, err := t.pager.ReadPage(pageID)
+		if err != nil {
+			return fmt.Errorf("btree.Tree.UpdateCellSameSize: read %d: %w", pageID, err)
+		}
+		ptype := storage.PageType(pg.Data[0])
+		if isLeafType(ptype) {
+			if err := UpdateCellSameSize(pg, key, newPayload); err != nil {
+				return err
+			}
+			return t.pager.WritePage(pg)
+		}
+		if !isInternalType(ptype) {
+			return &storage.CorruptionError{PageID: pageID, Reason: fmt.Sprintf("unexpected page type 0x%02x during UpdateCellSameSize descent", byte(ptype))}
+		}
+		childID, err := FindChild(pg, key)
+		if err != nil {
+			return err
+		}
+		pageID = childID
+	}
+}
+
 // Scan walks every cell in key order across all leaves. It descends to
 // the leftmost leaf, then walks the leaf chain via RightSibling. The
 // payload slice given to fn aliases page memory and is valid only for

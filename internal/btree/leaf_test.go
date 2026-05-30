@@ -383,6 +383,90 @@ func TestIterateStopsOnError(t *testing.T) {
 	}
 }
 
+func TestUpdateCellSameSizeSucceeds(t *testing.T) {
+	pg := newEmptyLeaf(t)
+	if err := InsertCell(pg, 1, []byte("AAAA")); err != nil {
+		t.Fatalf("InsertCell: %v", err)
+	}
+	if err := UpdateCellSameSize(pg, 1, []byte("BBBB")); err != nil {
+		t.Fatalf("UpdateCellSameSize: %v", err)
+	}
+	got, found, err := GetCell(pg, 1)
+	if err != nil || !found {
+		t.Fatalf("GetCell after update: found=%v err=%v", found, err)
+	}
+	if !bytes.Equal(got, []byte("BBBB")) {
+		t.Errorf("payload after update = %q, want BBBB", got)
+	}
+	if err := Validate(pg); err != nil {
+		t.Errorf("Validate after update: %v", err)
+	}
+}
+
+func TestUpdateCellSameSizeRejectsSizeMismatch(t *testing.T) {
+	pg := newEmptyLeaf(t)
+	if err := InsertCell(pg, 1, []byte("AAAA")); err != nil {
+		t.Fatalf("InsertCell: %v", err)
+	}
+	for _, badPayload := range [][]byte{
+		[]byte("AAAAA"), // larger
+		[]byte("AAA"),   // smaller
+	} {
+		err := UpdateCellSameSize(pg, 1, badPayload)
+		if !errors.Is(err, ErrSizeChanged) {
+			t.Errorf("payload %q: err = %v, want ErrSizeChanged", badPayload, err)
+		}
+		// Page state unchanged: original payload still readable.
+		got, _, _ := GetCell(pg, 1)
+		if !bytes.Equal(got, []byte("AAAA")) {
+			t.Errorf("payload changed after rejected update: %q", got)
+		}
+	}
+}
+
+func TestUpdateCellSameSizeRejectsMissingKey(t *testing.T) {
+	pg := newEmptyLeaf(t)
+	if err := InsertCell(pg, 1, []byte("AAAA")); err != nil {
+		t.Fatalf("InsertCell: %v", err)
+	}
+	err := UpdateCellSameSize(pg, 999, []byte("BBBB"))
+	if !errors.Is(err, ErrKeyNotFound) {
+		t.Fatalf("err = %v, want ErrKeyNotFound", err)
+	}
+}
+
+func TestUpdateCellSameSizeManyCells(t *testing.T) {
+	// Update an arbitrary middle cell among many; surrounding cells
+	// must be unaffected.
+	pg := newEmptyLeaf(t)
+	for k := uint64(1); k <= 20; k++ {
+		payload := bytes.Repeat([]byte{byte(k)}, 16)
+		if err := InsertCell(pg, k, payload); err != nil {
+			t.Fatalf("InsertCell(%d): %v", k, err)
+		}
+	}
+	newPayload := bytes.Repeat([]byte{0xFE}, 16)
+	if err := UpdateCellSameSize(pg, 10, newPayload); err != nil {
+		t.Fatalf("UpdateCellSameSize(10): %v", err)
+	}
+	// Updated cell.
+	got, _, _ := GetCell(pg, 10)
+	if !bytes.Equal(got, newPayload) {
+		t.Errorf("Get(10) after update mismatch")
+	}
+	// Neighbors untouched.
+	for _, k := range []uint64{1, 5, 9, 11, 15, 20} {
+		got, _, _ := GetCell(pg, k)
+		want := bytes.Repeat([]byte{byte(k)}, 16)
+		if !bytes.Equal(got, want) {
+			t.Errorf("Get(%d) after Update(10) mismatch", k)
+		}
+	}
+	if err := Validate(pg); err != nil {
+		t.Errorf("Validate: %v", err)
+	}
+}
+
 func equalUints(a, b []uint64) bool {
 	if len(a) != len(b) {
 		return false

@@ -185,6 +185,48 @@ func InsertCell(pg *storage.Page, key uint64, payload []byte) error {
 	return nil
 }
 
+// UpdateCellSameSize replaces the payload of an existing cell with
+// newPayload, provided the new encoded cell size equals the existing
+// cell's. Returns ErrKeyNotFound if the key isn't present, or
+// ErrSizeChanged if the sizes differ. The page state is unchanged on
+// either error.
+//
+// The intended caller is internal/catalog.SetTableRoot, which
+// re-encodes a catalog row after only the fixed-width RootPageID has
+// changed — sizes match by construction. See ADR-0018 for the
+// same-size constraint's rationale.
+func UpdateCellSameSize(pg *storage.Page, key uint64, newPayload []byte) error {
+	h, err := requireLeaf(pg)
+	if err != nil {
+		return err
+	}
+	idx, found, err := search(pg, h, key)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return ErrKeyNotFound
+	}
+	off := readSlot(pg, idx)
+	_, existingPayload, cellLen, err := readCell(pg.Data[off:])
+	if err != nil {
+		return &storage.CorruptionError{PageID: pg.ID, Reason: err.Error()}
+	}
+	// Same key, same key-encoding length; same payload length means
+	// same overall cellSize. Check payload length directly — it's the
+	// only thing that can have varied.
+	if len(newPayload) != len(existingPayload) {
+		return ErrSizeChanged
+	}
+	// Overwrite the payload bytes in place. The key + payload-length
+	// prefix stay put (their encoded sizes are unchanged). The
+	// payload starts at: cellOffset + cellLen - len(existingPayload).
+	payloadStart := int(off) + cellLen - len(existingPayload)
+	copy(pg.Data[payloadStart:payloadStart+len(newPayload)], newPayload)
+	pg.Dirty = true
+	return nil
+}
+
 // GetCell returns the payload for key as a freshly-allocated copy.
 // found is true iff the key exists on the page.
 func GetCell(pg *storage.Page, key uint64) ([]byte, bool, error) {
