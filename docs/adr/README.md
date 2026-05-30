@@ -20,6 +20,7 @@ ADRs are short, dated, immutable documents. They are not the same as the [PRD](.
 | 0010 | [Slotted page with sorted cell directory + payloads from page end](0010-slotted-page-layout.md) | Accepted |
 | 0011 | [Primary-key column stays in the row payload](0011-pk-column-stays-in-row.md)                | Accepted |
 | 0012 | [Append-only page allocation in v0.1 (no freelist)](0012-append-only-page-allocation.md)     | Accepted |
+| 0013 | [`PageHeader.RightSibling` carries dual semantics](0013-rightsibling-dual-semantics.md)       | Accepted |
 
 ## How to add an ADR
 
