@@ -152,35 +152,33 @@ func TestTreeInsertRejectsDuplicateKey(t *testing.T) {
 	}
 }
 
-func TestInsertReportsPageFullWhenLeafFull(t *testing.T) {
+// TestInsertBeyondOneLeafSplitsAutomatically replaces the M4-era
+// TestInsertReportsPageFullWhenLeafFull: now that the Tree handles leaf
+// overflow by splitting, inserting past the capacity of one leaf must
+// succeed silently and every prior cell must remain retrievable.
+func TestInsertBeyondOneLeafSplitsAutomatically(t *testing.T) {
 	p := newPager(t)
 	tr, _ := Create(p)
+	originalRoot := tr.RootPageID()
+
 	payload := bytes.Repeat([]byte{0xAB}, 500)
-	var inserted []uint64
-	var k uint64
-	for {
-		k++
+	const target = 200 // far more than fits in one 4KB leaf with 500-byte payloads
+	for k := uint64(1); k <= target; k++ {
 		if err := tr.Insert(k, payload); err != nil {
-			if !errors.Is(err, ErrPageFull) {
-				t.Fatalf("Insert(%d): %v", k, err)
-			}
-			break
+			t.Fatalf("Insert(%d): %v (expected silent split, not error)", k, err)
 		}
-		inserted = append(inserted, k)
-		if len(inserted) > 100 {
-			t.Fatalf("expected ErrPageFull eventually; inserted %d cells", len(inserted))
-		}
-	}
-	if len(inserted) == 0 {
-		t.Fatalf("could not insert any cells before page full")
 	}
 	if err := tr.Validate(); err != nil {
-		t.Errorf("Validate after page-full: %v", err)
+		t.Errorf("Validate after %d inserts: %v", target, err)
 	}
-	for _, k := range inserted {
+	if tr.RootPageID() == originalRoot {
+		t.Errorf("RootPageID unchanged after %d inserts — expected at least one root grow", target)
+	}
+	for k := uint64(1); k <= target; k++ {
 		got, found, err := tr.Get(k)
 		if err != nil || !found {
-			t.Errorf("Get(%d) after page-full: found=%v err=%v", k, found, err)
+			t.Errorf("Get(%d) after splits: found=%v err=%v", k, found, err)
+			continue
 		}
 		if !bytes.Equal(got, payload) {
 			t.Errorf("Get(%d) payload corrupted", k)
@@ -357,16 +355,375 @@ func TestRootPageIDIsStable(t *testing.T) {
 	}
 }
 
-func TestOpenWrongPageTypeReturnsErrNotLeaf(t *testing.T) {
+// ---- M5 multi-page tree tests ----
+
+// makeBigPayload returns a payload sized to force splits quickly: at
+// ~500 bytes each, ~7 cells fit in a 4 KB leaf, so splits happen with
+// modest insert counts.
+func makeBigPayload(seed byte) []byte {
+	return bytes.Repeat([]byte{seed}, 500)
+}
+
+func TestInsertGrowsTreePastOnePage(t *testing.T) {
 	p := newPager(t)
-	// Page 0 is the database header (type = PageTypeHeader), not a leaf.
+	tr, _ := Create(p)
+	origRoot := tr.RootPageID()
+	// 20 inserts of ~500-byte payloads → comfortably forces several
+	// splits + at least one root grow.
+	for k := uint64(1); k <= 20; k++ {
+		if err := tr.Insert(k, makeBigPayload(byte(k))); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+	}
+	if tr.RootPageID() == origRoot {
+		t.Fatalf("RootPageID unchanged after 20 splits — expected at least one root grow")
+	}
+	if err := tr.Validate(); err != nil {
+		t.Errorf("Validate after splits: %v", err)
+	}
+}
+
+func TestInsertManyInOrder(t *testing.T) {
+	p := newPager(t)
+	tr, _ := Create(p)
+	const target = 500
+	payload := bytes.Repeat([]byte{0x55}, 200)
+	for k := uint64(1); k <= target; k++ {
+		if err := tr.Insert(k, payload); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+		if k%100 == 0 {
+			if err := tr.Validate(); err != nil {
+				t.Fatalf("Validate at k=%d: %v", k, err)
+			}
+		}
+	}
+	// Every key retrievable.
+	for k := uint64(1); k <= target; k++ {
+		got, found, err := tr.Get(k)
+		if err != nil || !found {
+			t.Errorf("Get(%d): found=%v err=%v", k, found, err)
+		}
+		if !bytes.Equal(got, payload) {
+			t.Errorf("Get(%d): payload mismatch", k)
+		}
+	}
+	// Scan yields all keys in ascending order.
+	var got []uint64
+	if err := tr.Scan(func(k uint64, _ []byte) error {
+		got = append(got, k)
+		return nil
+	}); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(got) != target {
+		t.Fatalf("Scan returned %d keys, want %d", len(got), target)
+	}
+	for i := 1; i < len(got); i++ {
+		if got[i] <= got[i-1] {
+			t.Fatalf("Scan keys not strictly ascending at index %d: %d then %d", i, got[i-1], got[i])
+		}
+	}
+}
+
+func TestInsertManyReverseOrder(t *testing.T) {
+	p := newPager(t)
+	tr, _ := Create(p)
+	const target = 500
+	payload := bytes.Repeat([]byte{0xAA}, 200)
+	for k := target; k >= 1; k-- {
+		if err := tr.Insert(uint64(k), payload); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+	}
+	if err := tr.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	var got []uint64
+	if err := tr.Scan(func(k uint64, _ []byte) error {
+		got = append(got, k)
+		return nil
+	}); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(got) != target {
+		t.Fatalf("Scan returned %d keys, want %d", len(got), target)
+	}
+	for i, k := range got {
+		want := uint64(i + 1)
+		if k != want {
+			t.Fatalf("Scan got[%d] = %d, want %d", i, k, want)
+		}
+	}
+}
+
+func TestInsertManyRandomOrder(t *testing.T) {
+	p := newPager(t)
+	tr, _ := Create(p)
+	rng := rand.New(rand.NewSource(0xDEAD))
+	seen := make(map[uint64]bool)
+	const target = 1000
+	payload := bytes.Repeat([]byte{0x33}, 100)
+	var keys []uint64
+	for attempt := 0; attempt < 50000 && len(seen) < target; attempt++ {
+		k := uint64(rng.Int63n(10_000_000)) + 1
+		if seen[k] {
+			continue
+		}
+		if err := tr.Insert(k, payload); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+		seen[k] = true
+		keys = append(keys, k)
+		if len(keys)%100 == 0 {
+			if err := tr.Validate(); err != nil {
+				t.Fatalf("Validate at %d inserts: %v", len(keys), err)
+			}
+		}
+	}
+	if len(seen) < target {
+		t.Fatalf("only inserted %d/%d unique keys", len(seen), target)
+	}
+	// Every key retrievable.
+	for k := range seen {
+		_, found, err := tr.Get(k)
+		if err != nil || !found {
+			t.Errorf("Get(%d): found=%v err=%v", k, found, err)
+		}
+	}
+	// Scan yields all keys in ascending order.
+	var scanned []uint64
+	if err := tr.Scan(func(k uint64, _ []byte) error {
+		scanned = append(scanned, k)
+		return nil
+	}); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(scanned) != target {
+		t.Fatalf("Scan returned %d keys, want %d", len(scanned), target)
+	}
+	for i := 1; i < len(scanned); i++ {
+		if scanned[i] <= scanned[i-1] {
+			t.Fatalf("Scan order broken at %d", i)
+		}
+	}
+}
+
+func TestScanCrossesLeafBoundaries(t *testing.T) {
+	p := newPager(t)
+	tr, _ := Create(p)
+	// Force at least a couple of leaf splits.
+	for k := uint64(1); k <= 50; k++ {
+		if err := tr.Insert(k, makeBigPayload(byte(k))); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+	}
+	var got []uint64
+	if err := tr.Scan(func(k uint64, _ []byte) error {
+		got = append(got, k)
+		return nil
+	}); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(got) != 50 {
+		t.Fatalf("Scan got %d keys, want 50", len(got))
+	}
+	for i, k := range got {
+		want := uint64(i + 1)
+		if k != want {
+			t.Fatalf("got[%d] = %d, want %d", i, k, want)
+		}
+	}
+}
+
+func TestPersistAcrossReopenWithSplits(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tree_m5.godb")
+
+	p := newPagerAt(t, path, true)
+	tr, err := Create(p)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	const target = 300
+	for k := uint64(1); k <= target; k++ {
+		if err := tr.Insert(k, makeBigPayload(byte(k%256))); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+	}
+	if err := p.SetCatalogRoot(tr.RootPageID()); err != nil {
+		t.Fatalf("SetCatalogRoot: %v", err)
+	}
+	if err := p.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	p2 := newPagerAt(t, path, false)
+	t.Cleanup(func() { _ = p2.Close() })
+	tr2 := Open(p2, p2.Header().CatalogRootPageID)
+	if err := tr2.Validate(); err != nil {
+		t.Fatalf("Validate after reopen: %v", err)
+	}
+	var count int
+	if err := tr2.Scan(func(k uint64, _ []byte) error {
+		count++
+		return nil
+	}); err != nil {
+		t.Fatalf("Scan after reopen: %v", err)
+	}
+	if count != target {
+		t.Fatalf("after reopen: scanned %d, want %d", count, target)
+	}
+	// Spot-check a few Gets.
+	for _, k := range []uint64{1, target / 2, target} {
+		got, found, err := tr2.Get(k)
+		if err != nil || !found {
+			t.Errorf("Get(%d) after reopen: found=%v err=%v", k, found, err)
+		}
+		want := makeBigPayload(byte(k % 256))
+		if !bytes.Equal(got, want) {
+			t.Errorf("Get(%d) payload mismatch", k)
+		}
+	}
+}
+
+func TestRootSplitChangesRootID(t *testing.T) {
+	p := newPager(t)
+	tr, _ := Create(p)
+	originalRoot := tr.RootPageID()
+	if err := p.SetCatalogRoot(originalRoot); err != nil {
+		t.Fatalf("SetCatalogRoot: %v", err)
+	}
+	// Stuff enough into the tree to force a root grow.
+	for k := uint64(1); k <= 30; k++ {
+		if err := tr.Insert(k, makeBigPayload(byte(k))); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+	}
+	if tr.RootPageID() == originalRoot {
+		t.Fatalf("RootPageID unchanged after 30 inserts — expected root grow")
+	}
+	// The tree's API does not auto-update the catalog field. Confirm
+	// that contract: the header still points at the original (now-stale)
+	// root until the caller re-syncs.
+	if got := p.Header().CatalogRootPageID; got != originalRoot {
+		t.Errorf("CatalogRootPageID auto-changed to %d; M5 contract says caller must explicitly call SetCatalogRoot", got)
+	}
+	// Now caller does the right thing.
+	if err := p.SetCatalogRoot(tr.RootPageID()); err != nil {
+		t.Fatalf("SetCatalogRoot: %v", err)
+	}
+	if got := p.Header().CatalogRootPageID; got != tr.RootPageID() {
+		t.Errorf("after SetCatalogRoot: header = %d, want %d", got, tr.RootPageID())
+	}
+}
+
+func TestInsertDuplicateAcrossLeavesStillRejected(t *testing.T) {
+	p := newPager(t)
+	tr, _ := Create(p)
+	// Build a multi-leaf tree.
+	for k := uint64(1); k <= 50; k++ {
+		if err := tr.Insert(k, makeBigPayload(byte(k))); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+	}
+	// Pick a key that is now buried in some leaf (not the leftmost or
+	// rightmost). Re-insert; must fail.
+	target := uint64(25)
+	err := tr.Insert(target, []byte("dup"))
+	if !errors.Is(err, ErrDuplicateKey) {
+		t.Fatalf("Insert(dup %d): err = %v, want ErrDuplicateKey", target, err)
+	}
+	if err := tr.Validate(); err != nil {
+		t.Errorf("Validate after dup-key reject: %v", err)
+	}
+}
+
+func TestScanStopsOnCallbackErrorAcrossLeaves(t *testing.T) {
+	p := newPager(t)
+	tr, _ := Create(p)
+	for k := uint64(1); k <= 40; k++ {
+		if err := tr.Insert(k, makeBigPayload(byte(k))); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+	}
+	// Stop iteration at key=20 — which is deliberately *past* the first
+	// leaf boundary in the tree above.
+	sentinel := errors.New("stop")
+	var lastSeen uint64
+	err := tr.Scan(func(k uint64, _ []byte) error {
+		lastSeen = k
+		if k == 20 {
+			return sentinel
+		}
+		return nil
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("err = %v, want sentinel", err)
+	}
+	if lastSeen != 20 {
+		t.Errorf("lastSeen = %d, want 20", lastSeen)
+	}
+}
+
+func TestPropertyInsertGetSubset(t *testing.T) {
+	p := newPager(t)
+	tr, _ := Create(p)
+	rng := rand.New(rand.NewSource(0xCAFE))
+	const target = 600
+	payload := bytes.Repeat([]byte{0x77}, 80)
+	seen := make(map[uint64][]byte)
+	for len(seen) < target {
+		k := uint64(rng.Int63n(5_000_000)) + 1
+		if _, dup := seen[k]; dup {
+			continue
+		}
+		if err := tr.Insert(k, payload); err != nil {
+			t.Fatalf("Insert(%d): %v", k, err)
+		}
+		seen[k] = payload
+		// After every insert, do 3 random lookups on past keys.
+		if len(seen) > 5 {
+			i := 0
+			for past := range seen {
+				_, found, err := tr.Get(past)
+				if err != nil || !found {
+					t.Fatalf("Get(%d) after %d inserts: found=%v err=%v", past, len(seen), found, err)
+				}
+				i++
+				if i >= 3 {
+					break
+				}
+			}
+		}
+	}
+}
+
+func TestOpenWrongPageTypeReturnsTypedError(t *testing.T) {
+	p := newPager(t)
+	// Page 0 is the database header — neither a leaf nor an internal page.
+	// Tree operations should refuse it with a typed error (either ErrNotLeaf
+	// from a leaf-asserting helper or a *storage.CorruptionError flagging
+	// the unexpected page type byte).
 	tr := Open(p, storage.PageID(0))
-	if err := tr.Validate(); !errors.Is(err, ErrNotLeaf) {
-		t.Errorf("Validate on header page: err = %v, want ErrNotLeaf", err)
+
+	wantTypedError := func(name string, err error) {
+		t.Helper()
+		if err == nil {
+			t.Errorf("%s: nil error, want a typed error", name)
+			return
+		}
+		var ce *storage.CorruptionError
+		if errors.Is(err, ErrNotLeaf) || errors.As(err, &ce) {
+			return
+		}
+		t.Errorf("%s: err = %v, want ErrNotLeaf or *storage.CorruptionError", name, err)
 	}
-	if err := tr.Insert(1, []byte("x")); !errors.Is(err, ErrNotLeaf) {
-		t.Errorf("Insert on header page: err = %v, want ErrNotLeaf", err)
-	}
+
+	wantTypedError("Validate", tr.Validate())
+	wantTypedError("Insert", tr.Insert(1, []byte("x")))
+	_, _, getErr := tr.Get(1)
+	wantTypedError("Get", getErr)
 }
 
 func TestValidateAfterRandomInserts(t *testing.T) {
