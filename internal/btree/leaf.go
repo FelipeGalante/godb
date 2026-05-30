@@ -18,6 +18,30 @@ func isLeafType(t storage.PageType) bool {
 	return t == storage.PageTypeTableLeaf || t == storage.PageTypeIndexLeaf
 }
 
+// SetRightSibling writes id into the leaf's RightSibling header field.
+// Used by leaf splits (M5+) to thread the leaf chain. 0 means "no
+// right-hand neighbor; this is the rightmost leaf in the tree."
+func SetRightSibling(pg *storage.Page, id storage.PageID) error {
+	h, err := requireLeaf(pg)
+	if err != nil {
+		return err
+	}
+	h.RightSibling = id
+	WriteHeader(pg, h)
+	pg.Dirty = true
+	return nil
+}
+
+// RightSibling returns the leaf's RightSibling pointer. 0 if this is
+// the rightmost leaf.
+func RightSibling(pg *storage.Page) (storage.PageID, error) {
+	h, err := requireLeaf(pg)
+	if err != nil {
+		return 0, err
+	}
+	return h.RightSibling, nil
+}
+
 // InitLeaf initializes pg as an empty slotted leaf. The page type byte
 // must already be set (Pager.AllocatePage does this). The body is
 // zero-filled.

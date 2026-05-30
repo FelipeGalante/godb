@@ -3,14 +3,24 @@ package btree
 import (
 	"encoding/binary"
 	"fmt"
+
+	"github.com/felipegalante/godb/internal/storage"
 )
 
-// A table-leaf cell on disk is:
+// Two cell formats live in this package.
+//
+// A table-LEAF cell (spec §10.3):
 //
 //	[key: uvarint][payload length: uvarint][payload bytes]
 //
-// uvarints use LEB128 (encoding/binary). Cells live in the bottom of
-// the page; the cell directory at the top points to their offsets.
+// A table-INTERNAL cell (spec §10.4):
+//
+//	[left_child_page_id: uint64 BE][separator_key: uvarint]
+//
+// Leaves point at row payloads; internal pages point at child pages and
+// carry only separator keys. Both formats use the same slotted-page
+// directory + free-space scheme — only the cell encoding differs.
+// uvarints are LEB128 from encoding/binary.
 
 // cellSize returns the encoded byte size of a cell with the given key
 // and payload length.
@@ -71,4 +81,51 @@ func readCell(buf []byte) (key uint64, payload []byte, n int, err error) {
 		return 0, nil, 0, fmt.Errorf("btree: readCell: payload truncated (want %d bytes, have %d)", length, len(buf)-start)
 	}
 	return k, buf[start:end], end, nil
+}
+
+// internalCellSize returns the encoded byte size of an internal-page cell
+// with the given separator key. The child page id is always 8 bytes; the
+// separator varies with its uvarint encoding.
+func internalCellSize(separator uint64) int {
+	return 8 + uvarintSize(separator)
+}
+
+// writeInternalCell encodes (childID, separator) into the start of buf
+// and returns the number of bytes written.
+func writeInternalCell(buf []byte, childID storage.PageID, separator uint64) (int, error) {
+	need := internalCellSize(separator)
+	if len(buf) < need {
+		return 0, fmt.Errorf("btree: writeInternalCell: need %d bytes, have %d", need, len(buf))
+	}
+	binary.BigEndian.PutUint64(buf[:8], uint64(childID))
+	pos := 8 + binary.PutUvarint(buf[8:], separator)
+	return pos, nil
+}
+
+// readInternalCellSeparator decodes only the separator key of an internal
+// cell at buf. It is used during binary search of an internal page where
+// the child id isn't needed for the comparison itself.
+func readInternalCellSeparator(buf []byte) (separator uint64, n int, err error) {
+	if len(buf) < 8 {
+		return 0, 0, fmt.Errorf("btree: readInternalCellSeparator: short cell (need 8 bytes for child id, have %d)", len(buf))
+	}
+	sep, ln := binary.Uvarint(buf[8:])
+	if ln <= 0 {
+		return 0, 0, fmt.Errorf("btree: readInternalCellSeparator: truncated separator")
+	}
+	return sep, 8 + ln, nil
+}
+
+// readInternalCell decodes a full internal cell at buf, returning the
+// child page id, the separator key, and the total bytes consumed.
+func readInternalCell(buf []byte) (childID storage.PageID, separator uint64, n int, err error) {
+	if len(buf) < 8 {
+		return 0, 0, 0, fmt.Errorf("btree: readInternalCell: short cell (need 8 bytes for child id, have %d)", len(buf))
+	}
+	childID = storage.PageID(binary.BigEndian.Uint64(buf[:8]))
+	sep, ln := binary.Uvarint(buf[8:])
+	if ln <= 0 {
+		return 0, 0, 0, fmt.Errorf("btree: readInternalCell: truncated separator")
+	}
+	return childID, sep, 8 + ln, nil
 }

@@ -50,6 +50,12 @@ func ReadHeader(pg *storage.Page) PageHeader {
 	}
 }
 
+// isInternalType returns true for page type bytes that are recognized
+// internal nodes (table or index). Mirrors isLeafType in leaf.go.
+func isInternalType(t storage.PageType) bool {
+	return t == storage.PageTypeTableInternal || t == storage.PageTypeIndexInternal
+}
+
 // WriteHeader encodes h into pg's header bytes. It does not touch the
 // page body.
 func WriteHeader(pg *storage.Page, h PageHeader) {
