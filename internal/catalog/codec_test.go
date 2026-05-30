@@ -41,8 +41,9 @@ func TestEncodeDecodeObjectRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EncodeObject: %v", err)
 	}
-	if len(buf) < 2 || buf[0] != catalogFormatVersion {
-		t.Fatalf("first byte = 0x%02x, want 0x%02x", buf[0], catalogFormatVersion)
+	if len(buf) < 3 || buf[0] != catalogMagic || buf[1] != catalogFormatVersion {
+		t.Fatalf("prefix = 0x%02x 0x%02x, want 0x%02x 0x%02x",
+			buf[0], buf[1], catalogMagic, catalogFormatVersion)
 	}
 	got, err := DecodeObject(buf)
 	if err != nil {
@@ -64,7 +65,8 @@ func TestEncodeDecodeObjectRoundTrip(t *testing.T) {
 }
 
 func TestDecodeRejectsUnsupportedVersion(t *testing.T) {
-	buf := []byte{0xFF, byte(ObjectTypeTable), 0x00}
+	// Magic OK, version byte mismatched.
+	buf := []byte{catalogMagic, 0xFF, byte(ObjectTypeTable), 0x00}
 	_, err := DecodeObject(buf)
 	if !errors.Is(err, ErrUnsupportedCatalogVersion) {
 		t.Fatalf("err = %v, want ErrUnsupportedCatalogVersion", err)
@@ -84,11 +86,24 @@ func TestDecodeRejectsInvalidObjectType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EncodeObject: %v", err)
 	}
-	// Corrupt the object type byte (offset 1).
-	buf[1] = 0x7F
+	// Corrupt the object type byte (offset 2: after magic + version).
+	buf[2] = 0x7F
 	_, err = DecodeObject(buf)
 	if !errors.Is(err, ErrInvalidObjectType) {
 		t.Fatalf("err = %v, want ErrInvalidObjectType", err)
+	}
+}
+
+func TestDecodeRejectsBadMagic(t *testing.T) {
+	in := usersObject()
+	buf, err := EncodeObject(in)
+	if err != nil {
+		t.Fatalf("EncodeObject: %v", err)
+	}
+	buf[0] = 0x01 // collides with record.rowVersion — exactly the pre-M6 fence case
+	_, err = DecodeObject(buf)
+	if !errors.Is(err, ErrUnsupportedCatalogVersion) {
+		t.Fatalf("err = %v, want ErrUnsupportedCatalogVersion", err)
 	}
 }
 
@@ -199,6 +214,7 @@ func TestRoundTripUTF8Strings(t *testing.T) {
 func TestDecodeRejectsInvalidUTF8(t *testing.T) {
 	// Hand-craft a payload with valid header but invalid UTF-8 in the name.
 	buf := []byte{
+		catalogMagic,
 		catalogFormatVersion,
 		byte(ObjectTypeTable),
 		0x02, 0xff, 0xfe, // name length 2, bytes are not valid UTF-8

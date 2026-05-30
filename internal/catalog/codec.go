@@ -9,9 +9,20 @@ import (
 	"github.com/felipegalante/godb/internal/storage"
 )
 
-// catalogFormatVersion is the leading byte of every encoded catalog
-// row. It is bumped only on incompatible on-disk format changes; the
-// decoder rejects anything else with ErrUnsupportedCatalogVersion.
+// catalogMagic is the first byte of every encoded catalog row. It is
+// chosen specifically NOT to collide with the leading byte of any
+// other format the database might hold at the same byte offset — in
+// particular, internal/record's row version is 0x01, and using the
+// same value here would mean a pre-M6 .godb file (where
+// Header.CatalogRootPageID pointed at a regular leaf containing
+// record-encoded rows) would slip past the version check and fail
+// downstream with a confusing truncation error rather than a clean
+// "this isn't a catalog row" rejection.
+const catalogMagic byte = 0xCA
+
+// catalogFormatVersion is the second byte of every encoded catalog
+// row. Bumped only on incompatible on-disk format changes; the
+// decoder rejects mismatches with ErrUnsupportedCatalogVersion.
 const catalogFormatVersion byte = 1
 
 // ObjectType tags the kind of catalog object. Byte values are on-disk
@@ -49,6 +60,7 @@ type Object struct {
 //
 // Layout (uvarint = LEB128 via encoding/binary):
 //
+//	[catalog magic: u8 = 0xCA]
 //	[catalog format version: u8 = 1]
 //	[object type: u8]
 //	[name length: uvarint] [name bytes]
@@ -60,6 +72,10 @@ type Object struct {
 //	  [kind: u8]                          // record.Kind on-disk byte
 //	  [flags: u8]                          // bit 0 = NotNull, bit 1 = PrimaryKey
 //	  [position: uvarint]
+//
+// The magic byte fences against pre-M6 .godb files (where the header's
+// CatalogRootPageID pointed at a regular table leaf containing
+// record-encoded rows that start with 0x01).
 func EncodeObject(obj *Object) ([]byte, error) {
 	if obj == nil {
 		return nil, fmt.Errorf("catalog.EncodeObject: nil object")
@@ -70,7 +86,7 @@ func EncodeObject(obj *Object) ([]byte, error) {
 
 	// Pre-size optimistically; appends grow the slice as needed.
 	buf := make([]byte, 0, 64+len(obj.Name)+len(obj.SQL)+32*len(obj.Schema.Columns))
-	buf = append(buf, catalogFormatVersion)
+	buf = append(buf, catalogMagic, catalogFormatVersion)
 	buf = append(buf, byte(obj.Type))
 
 	buf = appendVarBytes(buf, []byte(obj.Name))
@@ -104,19 +120,23 @@ func EncodeObject(obj *Object) ([]byte, error) {
 }
 
 // DecodeObject parses a catalog row produced by EncodeObject. Returns
-// ErrUnsupportedCatalogVersion if the leading byte is unexpected
-// (which also catches pre-M6 .godb files whose CatalogRootPageID
-// pointed at a regular leaf).
+// ErrUnsupportedCatalogVersion if either the leading magic byte or the
+// format-version byte is unexpected (which fences against pre-M6
+// .godb files whose CatalogRootPageID pointed at a regular leaf).
 func DecodeObject(src []byte) (*Object, error) {
 	pos := 0
-	if len(src) < 1 {
+	if len(src) < 2 {
 		return nil, ErrShortBuffer
 	}
-	if src[0] != catalogFormatVersion {
-		return nil, fmt.Errorf("%w: 0x%02x (this binary supports 0x%02x)",
-			ErrUnsupportedCatalogVersion, src[0], catalogFormatVersion)
+	if src[0] != catalogMagic {
+		return nil, fmt.Errorf("%w: leading byte 0x%02x is not catalog magic 0x%02x",
+			ErrUnsupportedCatalogVersion, src[0], catalogMagic)
 	}
-	pos++
+	if src[1] != catalogFormatVersion {
+		return nil, fmt.Errorf("%w: format version 0x%02x (this binary supports 0x%02x)",
+			ErrUnsupportedCatalogVersion, src[1], catalogFormatVersion)
+	}
+	pos = 2
 
 	if pos >= len(src) {
 		return nil, ErrShortBuffer

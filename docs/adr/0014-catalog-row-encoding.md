@@ -19,13 +19,20 @@ Path (2) is more lines of code but every line is doing exactly the thing it look
 
 There's also a third concern this decision has to address: GoDB's `Header.CatalogRootPageID` field has been dual-purpose since M4 (used as a stash for the application's single primary-tree root id pre-catalog). When M6's `catalog.Open` reads a non-zero value, it could be pointing at a real catalog tree (post-M6) *or* a regular table leaf (pre-M6). The catalog codec needs a way to reject the second case cleanly, not crash on it.
 
+A single version byte is not enough on its own: `record.EncodeRow` writes a row version byte at the start of every encoded row, and it happens to use the value `1` — exactly what a single-byte catalog version would also use. We need a more distinctive prefix.
+
 ## Decision
 
-The catalog defines its own row encoding in [`internal/catalog/codec.go`](../../internal/catalog/codec.go). The format starts with a one-byte **format version** (currently `1`), followed by the object type byte and the named fields in order. The version byte serves three jobs simultaneously:
+The catalog defines its own row encoding in [`internal/catalog/codec.go`](../../internal/catalog/codec.go). The format starts with a **two-byte prefix**:
 
-- Future format-evolution hook (bump to `2` if/when the layout changes).
-- Sanity check at decode (anything other than `1` returns `ErrUnsupportedCatalogVersion`).
-- Fence against accidentally walking a pre-M6 `.godb` file whose `CatalogRootPageID` pointed at a regular table leaf — the leaf's first cell payload is a `record`-encoded row whose first byte is `1` (the row version) but immediately diverges from the catalog format.
+- `0xCA` — catalog magic byte. Chosen specifically because it's a high-bit-set byte unlikely to appear as the leading byte of any other format the database holds (in particular, distinct from `record`'s row-version byte `0x01`).
+- `0x01` — catalog format version. Bumped only on incompatible on-disk format changes.
+
+Then the object type byte and the named fields in order. The two-byte prefix serves three jobs simultaneously:
+
+- **Magic fences against accidentally walking a pre-M6 `.godb` file** whose `CatalogRootPageID` pointed at a regular table leaf. The leaf's first cell payload is a `record`-encoded row whose first byte is `0x01` — which does not match the catalog magic `0xCA`, so `DecodeObject` returns `ErrUnsupportedCatalogVersion` immediately. Without the magic byte this case would slip past a single version check and fail downstream with a confusing truncation error.
+- **Version byte is a future format-evolution hook** (bump to `2` if/when the layout changes).
+- **Both bytes are checked at decode**; mismatch on either returns `ErrUnsupportedCatalogVersion`.
 
 The object id (the catalog btree's cell key) is **not** encoded in the payload — keeping it solely in the cell key saves a few bytes per object and removes a "key and payload id disagree" failure mode.
 
