@@ -1,4 +1,4 @@
-# Current state (pre-alpha, as of M6)
+# Current state (pre-alpha, as of M7)
 
 An honest snapshot of what GoDB can and can't do right now, refreshed every milestone. This page exists so a reader doesn't have to scan commit history or trial-and-error their way into the API surface.
 
@@ -6,7 +6,7 @@ If you're new here, read [`README.md`](README.md) in this directory first. It fr
 
 ## What works internally
 
-Six internal packages do real work today. None of them are exposed via `pkg/godb` yet (M8). All of them are exercised by tests under `make test` and `make race`.
+Seven internal packages do real work today. None of them are exposed via `pkg/godb` yet (M8). All of them are exercised by tests under `make test` and `make race`.
 
 ### `internal/storage` — the pager
 
@@ -59,7 +59,20 @@ The metadata layer above `btree`. Keeps the name → root-page-id + schema mappi
 
 On-disk catalog rows are a custom binary format (not `record.EncodeRow`) starting with the two-byte magic+version prefix `0xCA 0x01` — the magic byte fences pre-M6 `.godb` files cleanly. Documented in [ADR-0014](../adr/0014-catalog-row-encoding.md) and walked through in [chapter 08](../book/08-milestone-6-catalog.md).
 
-### `internal/buffer`, `internal/sql`, `internal/planner`, `internal/exec`, `internal/tx`, `internal/engine`, `pkg/godb`, `pkg/driver`
+### `internal/sql` — lexer, parser, AST
+
+The SQL frontend. Turns a string like `CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL);` into a typed AST. No execution yet (M9).
+
+- `sql.Parse(src) (Statement, error)` — parse exactly one statement. Trailing tokens after the statement are a syntax error (use `ParseAll` for multi-statement scripts).
+- `sql.ParseAll(src) ([]Statement, error)` — parse zero or more statements separated by `;`.
+- `sql.NewLexer(src) *Lexer` — tokenize directly if you need the lexer without the parser. `Lexer.Next` / `Lexer.Peek`.
+- `sql.ColumnDefsToSchema(defs) record.Schema` — small bridge that converts a parsed `CREATE TABLE`'s `Columns` into the catalog's expected `record.Schema` shape.
+
+Supported grammar: `CREATE TABLE`, `INSERT INTO`, `SELECT ... [WHERE column = expr]`. Three column types (`INTEGER`, `TEXT`, `BOOLEAN`). Two column constraints (`NOT NULL`, `PRIMARY KEY`). Anonymous `?` placeholders. Anything else — `JOIN`, `GROUP BY`, `ORDER BY`, `LIMIT`, `UPDATE`, `DELETE`, `ALTER`, `AND`/`OR` in WHERE, comparison operators other than `=` — is recognized and rejected with `ErrUnsupportedSQL` and a clear message naming the feature.
+
+Documented in [ADR-0015](../adr/0015-sql-grammar-scope.md) and walked through in [chapter 09](../book/09-milestone-7-sql-parser.md).
+
+### `internal/buffer`, `internal/planner`, `internal/exec`, `internal/tx`, `internal/engine`, `pkg/godb`, `pkg/driver`
 
 All empty placeholders with `.gitkeep` files. They get filled in by future milestones in roughly that order.
 
@@ -91,6 +104,7 @@ import (
     "github.com/felipegalante/godb/internal/btree"
     "github.com/felipegalante/godb/internal/catalog"
     "github.com/felipegalante/godb/internal/record"
+    "github.com/felipegalante/godb/internal/sql"
     "github.com/felipegalante/godb/internal/storage"
 )
 
@@ -111,19 +125,20 @@ func main() {
         log.Fatal(err)
     }
 
-    // 3. Define the users schema and register the table. CreateTable
-    //    allocates a fresh B+tree for the table's data, encodes the
-    //    catalog row, and inserts it into the catalog tree. If the
-    //    table already exists from a prior run, LookupTable finds it.
-    schema := record.Schema{Columns: []record.Column{
-        {Name: "id", Kind: record.KindInteger, NotNull: true, PrimaryKey: true, Position: 0},
-        {Name: "name", Kind: record.KindText, NotNull: true, Position: 1},
-        {Name: "active", Kind: record.KindBoolean, Position: 2},
-    }}
-    info, err := cat.LookupTable("users")
+    // 3. Parse a SQL CREATE TABLE into an AST, convert it to a
+    //    record.Schema, and register the table. If the table already
+    //    exists from a prior run, LookupTable finds it.
+    const createSQL = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, active BOOLEAN);"
+    stmt, err := sql.Parse(createSQL)
+    if err != nil {
+        log.Fatal(err)
+    }
+    ct := stmt.(*sql.CreateTableStatement)
+    schema := sql.ColumnDefsToSchema(ct.Columns)
+
+    info, err := cat.LookupTable(ct.Name)
     if errors.Is(err, catalog.ErrTableNotFound) {
-        info, err = cat.CreateTable("users", schema,
-            "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, active BOOLEAN);")
+        info, err = cat.CreateTable(ct.Name, schema, createSQL)
     }
     if err != nil {
         log.Fatal(err)
@@ -180,17 +195,18 @@ func main() {
 
 What this snippet shows:
 
-- The five layers (storage / record / btree / catalog / your code) compose without help from any glue not in the engine.
-- Persistence works: kill the program, re-run it, and step 3 finds the existing `users` table via `LookupTable`; step 4 reopens its tree by `RootPageID`.
+- The six layers (storage / record / btree / catalog / sql / your code) compose without help from any glue not in the engine.
+- The SQL `CREATE TABLE` is parsed into a typed AST and converted to a `record.Schema` via the parser's `ColumnDefsToSchema` helper. No magic strings between the SQL the user wrote and what the catalog stores.
+- Persistence works: kill the program, re-run it, and step 3's `LookupTable` finds the existing `users` table; step 4 reopens its tree by `RootPageID`.
 - The `Tree.Scan` callback is invariant under splits: even if `Insert` had triggered ten splits between step 4 and step 6, `Scan` would still yield every row in key order via the leaf chain.
-- Adding a `posts` table is one more `cat.CreateTable("posts", ...)` call. Each table gets its own B+tree, all in the same `.godb` file, all surviving a close/reopen via the catalog.
+- Adding a `posts` table is one more parse + `cat.CreateTable("posts", ...)` call. Each table gets its own B+tree, all in the same `.godb` file, all surviving a close/reopen via the catalog.
 
 ## What just changed
 
-The most recent milestone is **M6 — catalog**. Chapter to read: [chapter 08](../book/08-milestone-6-catalog.md). What this means for users (well, future users) is that the database can now hold **multiple named tables**, each with its own B+tree, with metadata that survives close/reopen. The catalog is itself just another B+tree — see the chapter for the bootstrap story and why `Header.CatalogRootPageID` finally has its proper meaning.
+The most recent milestone is **M7 — SQL lexer + parser**. Chapter to read: [chapter 09](../book/09-milestone-7-sql-parser.md). The engine can now read SQL into a typed AST. The grammar is deliberately small ([ADR-0015](../adr/0015-sql-grammar-scope.md)): `CREATE TABLE`, `INSERT`, `SELECT ... [WHERE col = expr]`. Everything else is explicitly rejected with `ErrUnsupportedSQL` so a `JOIN` or `UPDATE` produces a clear message instead of a confusing syntax error.
 
-Pre-M6 `.godb` files are not compatible: the catalog's leading magic byte (`0xCA`) fences them cleanly with `ErrUnsupportedCatalogVersion` on open. Throw away pre-M6 files and re-create.
+What this milestone does NOT do: execute the parsed SQL. M9 closes that loop.
 
 ## What's next
 
-**M7 — SQL lexer + parser.** The engine learns to read a tiny SQL subset (`CREATE TABLE`, `INSERT`, `SELECT WHERE id = ?`) into an AST. No execution yet — that's M9, which loops the whole thing closed (`SQL → AST → plan → catalog lookup → tree operation → results`).
+**M8 — Public Go API.** Wraps everything we have (storage, record, btree, catalog, sql) into the stable user-facing surface: `godb.Open(path)`, `db.Exec(ctx, sql, args...)`, `db.Query(ctx, sql, args...)`, `db.Begin(ctx)`, plus `Rows.Next` / `Rows.Scan`. This is the milestone where "use godb" stops being a future tense.

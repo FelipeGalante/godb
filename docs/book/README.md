@@ -22,8 +22,9 @@ A chapter-per-milestone narrative for the GoDB project. Read it alongside the co
 | 06 | [The Smallest B+tree: One Leaf, One Root (M4)](06-milestone-4-b-tree-single-page.md) | B-trees and B+trees from first principles, height-zero trees, the Tree API that survives into M5+, where the root id lives |
 | 07 | [The Multi-page B+tree: Splits, Descent, and Growth (M5)](07-milestone-5-multi-page-btree.md) | Leaf and internal splits, the path stack, root growth, the leaf chain, and the atomic-split limitation deferred to v0.2 |
 | 08 | [The Catalog: Many Named Tables (M6)](08-milestone-6-catalog.md) | What metadata is, the bootstrap problem and the privileged header slot, why the catalog is itself just another B+tree, the magic-byte fence |
+| 09 | [The SQL Frontend (M7)](09-milestone-7-sql-parser.md) | Why a lexer and parser are separate phases, recursive descent in practice, the deliberately small grammar, the "recognize and refuse" rejection pattern |
 
-Chapters for milestones 7 through 11 land as those milestones land.
+Chapters for milestones 8 through 11 land as those milestones land.
 
 ## Conventions
 
@@ -35,4 +36,4 @@ Chapters for milestones 7 through 11 land as those milestones land.
 
 ## Status
 
-This book is a living document. Each milestone adds at least one chapter. The introduction and chapters 01–08 cover M0 through M6 as of 2026-05-30.
+This book is a living document. Each milestone adds at least one chapter. The introduction and chapters 01–09 cover M0 through M7 as of 2026-05-30.

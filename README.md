@@ -21,7 +21,7 @@ GoDB is an educational, portfolio-grade project that builds a real database engi
 
 ## Project status
 
-**Pre-alpha.** The storage stack, typed records, slotted pages, a multi-page B+tree with splits and root growth, and a catalog of named tables are landed. The database can now hold multiple tables, each with its own B+tree, all surviving a close/reopen cycle. The SQL parser, public Go API, executor, and CLI are still ahead. See the [Roadmap](#roadmap-abbreviated) below and the [development book](docs/book/) for the engineering narrative.
+**Pre-alpha.** The storage stack, typed records, slotted pages, a multi-page B+tree, a catalog of named tables, and a SQL lexer + parser are landed. The engine can read SQL — `CREATE TABLE`, `INSERT`, `SELECT WHERE id = ?` — into a typed AST. It can hold multiple named tables that survive a close/reopen cycle. What it cannot do yet is *execute* the parsed SQL — that's M9. The public Go API arrives at M8, the CLI commands at M10. See the [Roadmap](#roadmap-abbreviated) below and the [development book](docs/book/) for the engineering narrative.
 
 ## Roadmap (abbreviated)
 
@@ -32,8 +32,8 @@ GoDB is an educational, portfolio-grade project that builds a real database engi
 - M4 — single-page B+tree ✅
 - M5 — multi-page B+tree (splits, descent, root grow) ✅
 - M6 — catalog (named tables, persisted metadata) ✅
-- M7 — SQL lexer + parser (next)
-- M8 — public Go API
+- M7 — SQL lexer + parser (small grammar, recursive descent) ✅
+- M8 — public Go API (next)
 - M9 — executor
 - M10 — CLI
 - M11 — v0.1 release
