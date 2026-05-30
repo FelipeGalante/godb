@@ -21,6 +21,7 @@ ADRs are short, dated, immutable documents. They are not the same as the [PRD](.
 | 0011 | [Primary-key column stays in the row payload](0011-pk-column-stays-in-row.md)                | Accepted |
 | 0012 | [Append-only page allocation in v0.1 (no freelist)](0012-append-only-page-allocation.md)     | Accepted |
 | 0013 | [`PageHeader.RightSibling` carries dual semantics](0013-rightsibling-dual-semantics.md)       | Accepted |
+| 0014 | [Catalog object encoding uses a custom binary format](0014-catalog-row-encoding.md)           | Accepted |
 
 ## How to add an ADR
 
