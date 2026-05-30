@@ -313,6 +313,53 @@ func TestOpsAfterCloseReturnError(t *testing.T) {
 	}
 }
 
+func TestSetCatalogRootPersistsAcrossReopen(t *testing.T) {
+	path := tmpDBPath(t)
+	p, err := OpenPager(path, PagerOptions{CreateIfMissing: true})
+	if err != nil {
+		t.Fatalf("OpenPager: %v", err)
+	}
+	pg, err := p.AllocatePage(PageTypeTableLeaf)
+	if err != nil {
+		t.Fatalf("AllocatePage: %v", err)
+	}
+	if h := p.Header(); h.CatalogRootPageID != 0 {
+		t.Fatalf("fresh CatalogRootPageID = %d, want 0", h.CatalogRootPageID)
+	}
+	if err := p.SetCatalogRoot(pg.ID); err != nil {
+		t.Fatalf("SetCatalogRoot: %v", err)
+	}
+	if got := p.Header().CatalogRootPageID; got != pg.ID {
+		t.Errorf("after Set, CatalogRootPageID = %d, want %d", got, pg.ID)
+	}
+	if err := p.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	p2, err := OpenPager(path, PagerOptions{})
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	t.Cleanup(func() { _ = p2.Close() })
+	if got := p2.Header().CatalogRootPageID; got != pg.ID {
+		t.Errorf("after reopen, CatalogRootPageID = %d, want %d", got, pg.ID)
+	}
+}
+
+func TestSetCatalogRootAfterCloseReturnsError(t *testing.T) {
+	path := tmpDBPath(t)
+	p, err := OpenPager(path, PagerOptions{CreateIfMissing: true})
+	if err != nil {
+		t.Fatalf("OpenPager: %v", err)
+	}
+	if err := p.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := p.SetCatalogRoot(42); !errors.Is(err, ErrClosed) {
+		t.Errorf("SetCatalogRoot after close: err = %v, want ErrClosed", err)
+	}
+}
+
 func TestHeaderEncodeDecodeRoundTrip(t *testing.T) {
 	h := &Header{
 		FormatMajor:       FormatMajor,

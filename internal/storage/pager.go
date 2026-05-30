@@ -142,6 +142,24 @@ func (p *Pager) PageCount() uint64 {
 	return p.header.PageCount
 }
 
+// SetCatalogRoot updates Header.CatalogRootPageID on the in-memory header.
+// The change becomes durable on the next Sync() or Close(); SetCatalogRoot
+// itself does not flush.
+//
+// In v0.1 pre-catalog (M4–M5) this field is used by the application as the
+// root of its single primary B+tree, because the catalog itself does not
+// exist yet. M6 will repurpose the field as the actual catalog root; the
+// accessor's name reflects that eventual use.
+func (p *Pager) SetCatalogRoot(id PageID) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return ErrClosed
+	}
+	p.header.CatalogRootPageID = id
+	return nil
+}
+
 // Header returns a copy of the current database header. The pager
 // continues to own the canonical version; mutating the returned value
 // does not affect on-disk state.

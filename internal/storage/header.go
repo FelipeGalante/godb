@@ -23,7 +23,7 @@ const (
 //	6   u16  Format minor version
 //	8   u32  Page size
 //	12  u64  Page count
-//	20  u64  Catalog root page id     — 0 until milestone 6
+//	20  u64  Catalog root page id     — see CatalogRootPageID field doc
 //	28  u64  Freelist head page id    — 0 until v0.2
 //	36  u64  Database change counter
 //	44  u64  Last transaction id
@@ -31,10 +31,15 @@ const (
 //	56  u32  Reserved flags
 //	60+ ...  Reserved (zeroed)
 type Header struct {
-	FormatMajor       uint16
-	FormatMinor       uint16
-	PageSize          uint32
-	PageCount         uint64
+	FormatMajor uint16
+	FormatMinor uint16
+	PageSize    uint32
+	PageCount   uint64
+	// CatalogRootPageID points at the catalog's root page once the catalog
+	// exists (M6+). Pre-catalog (M4–M5), the application's single primary
+	// B+tree root id is stashed here so a tree can be reopened. The field
+	// reads as 0 on a freshly-created database. Updated via
+	// Pager.SetCatalogRoot.
 	CatalogRootPageID PageID
 	FreelistHeadPage  PageID
 	ChangeCounter     uint64
