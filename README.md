@@ -58,6 +58,13 @@ make fmt     # gofmt + goimports
 make clean   # remove binary and *.godb files
 ```
 
+## Documentation
+
+- [Product Requirements Document](docs/prd.md) — what GoDB is, who it's for, what v0.1 has to do.
+- [Architecture Decision Records](docs/adr/) — the load-bearing engineering decisions and the tradeoffs behind them.
+- [The development book](docs/book/) — a chapter-per-milestone narrative covering the database-internals concepts and the code that implements them. Start with the [introduction](docs/book/00-introduction.md).
+- [docs/](docs/) — entry point for everything documentation.
+
 ## License
 
 MIT
