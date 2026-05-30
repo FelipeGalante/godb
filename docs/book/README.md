@@ -21,8 +21,9 @@ A chapter-per-milestone narrative for the GoDB project. Read it alongside the co
 | 05 | [Slotted Pages: Many Records on One Page (M3)](05-milestone-3-slotted-pages.md) | The variable-length packing problem, slotted layout, cell directories, the "page full" contract |
 | 06 | [The Smallest B+tree: One Leaf, One Root (M4)](06-milestone-4-b-tree-single-page.md) | B-trees and B+trees from first principles, height-zero trees, the Tree API that survives into M5+, where the root id lives |
 | 07 | [The Multi-page B+tree: Splits, Descent, and Growth (M5)](07-milestone-5-multi-page-btree.md) | Leaf and internal splits, the path stack, root growth, the leaf chain, and the atomic-split limitation deferred to v0.2 |
+| 08 | [The Catalog: Many Named Tables (M6)](08-milestone-6-catalog.md) | What metadata is, the bootstrap problem and the privileged header slot, why the catalog is itself just another B+tree, the magic-byte fence |
 
-Chapters for milestones 6 through 11 land as those milestones land.
+Chapters for milestones 7 through 11 land as those milestones land.
 
 ## Conventions
 
@@ -34,4 +35,4 @@ Chapters for milestones 6 through 11 land as those milestones land.
 
 ## Status
 
-This book is a living document. Each milestone adds at least one chapter. The introduction and chapters 01–07 cover M0 through M5 as of 2026-05-30.
+This book is a living document. Each milestone adds at least one chapter. The introduction and chapters 01–08 cover M0 through M6 as of 2026-05-30.

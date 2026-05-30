@@ -14,8 +14,8 @@ It's also honest. GoDB is pre-alpha. As of this writing the public Go API doesn'
 | M3 — Slotted page | ✅ | Many cells in one page, sorted by key, with O(log n) lookup. Internal. |
 | M4 — Single-page B+tree | ✅ | A `Tree` type that wraps a single leaf and persists across reopens. Internal. |
 | M5 — Multi-page B+tree | ✅ | Splits, descent, root grow. ~10,000-row trees survive close/reopen. Internal. |
-| M6 — Catalog | next | Named tables (multiple `Tree`s in one database). Still internal. |
-| M7 — SQL lexer + parser | | `CREATE TABLE`, `INSERT`, `SELECT` parsed into an AST. Still internal. |
+| M6 — Catalog | ✅ | Multiple named tables in one database, each with its own B+tree. Metadata persists across close/reopen via the database header. Internal. |
+| M7 — SQL lexer + parser | next | `CREATE TABLE`, `INSERT`, `SELECT` parsed into an AST. Still internal. |
 | **M8 — Public Go API** | | **`godb.Open`, `db.Exec`, `db.Query`, `db.Begin`.** This is the milestone that makes "use godb" a real sentence. |
 | M9 — Executor | | End-to-end SQL execution. |
 | M10 — CLI | | Interactive shell, `exec`, `query`, `inspect`, `check`. |

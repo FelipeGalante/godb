@@ -1,4 +1,4 @@
-# Current state (pre-alpha, as of M5)
+# Current state (pre-alpha, as of M6)
 
 An honest snapshot of what GoDB can and can't do right now, refreshed every milestone. This page exists so a reader doesn't have to scan commit history or trial-and-error their way into the API surface.
 
@@ -6,7 +6,7 @@ If you're new here, read [`README.md`](README.md) in this directory first. It fr
 
 ## What works internally
 
-Five internal packages do real work today. None of them are exposed via `pkg/godb` yet (M8). All of them are exercised by tests under `make test` and `make race`.
+Six internal packages do real work today. None of them are exposed via `pkg/godb` yet (M8). All of them are exercised by tests under `make test` and `make race`.
 
 ### `internal/storage` — the pager
 
@@ -47,7 +47,19 @@ The whole storage-engine ladder above the pager:
 
 Slotted layout: [ADR-0010](../adr/0010-slotted-page-layout.md). Cell formats and split policy are walked through in [chapter 05](../book/05-milestone-3-slotted-pages.md) and [chapter 07](../book/07-milestone-5-multi-page-btree.md). The dual-purpose `RightSibling` header field: [ADR-0013](../adr/0013-rightsibling-dual-semantics.md).
 
-### `internal/buffer`, `internal/catalog`, `internal/sql`, `internal/planner`, `internal/exec`, `internal/tx`, `internal/engine`, `pkg/godb`, `pkg/driver`
+### `internal/catalog` — named tables and persistent metadata
+
+The metadata layer above `btree`. Keeps the name → root-page-id + schema mapping for every table in the database, persisted via a B+tree of its own.
+
+- `catalog.Open(pager) (*Catalog, error)` — bootstraps the catalog. On a fresh database it allocates the catalog's tree and writes the root id to `Header.CatalogRootPageID`. On an existing one it walks the tree and rebuilds the in-memory name index.
+- `catalog.CreateTable(name, schema, sql) (*TableInfo, error)` — allocates a fresh B+tree for the new table, encodes its metadata, inserts it into the catalog tree, and returns a `TableInfo` with the new id + root page id.
+- `catalog.LookupTable(name) (*TableInfo, error)` — O(1) cache hit.
+- `catalog.ListTables() []*TableInfo` — snapshot of every registered table.
+- `catalog.Sync() error` — persists the catalog tree's root id to the header and flushes the pager.
+
+On-disk catalog rows are a custom binary format (not `record.EncodeRow`) starting with the two-byte magic+version prefix `0xCA 0x01` — the magic byte fences pre-M6 `.godb` files cleanly. Documented in [ADR-0014](../adr/0014-catalog-row-encoding.md) and walked through in [chapter 08](../book/08-milestone-6-catalog.md).
+
+### `internal/buffer`, `internal/sql`, `internal/planner`, `internal/exec`, `internal/tx`, `internal/engine`, `pkg/godb`, `pkg/driver`
 
 All empty placeholders with `.gitkeep` files. They get filled in by future milestones in roughly that order.
 
@@ -77,6 +89,7 @@ import (
     "log"
 
     "github.com/felipegalante/godb/internal/btree"
+    "github.com/felipegalante/godb/internal/catalog"
     "github.com/felipegalante/godb/internal/record"
     "github.com/felipegalante/godb/internal/storage"
 )
@@ -89,32 +102,37 @@ func main() {
     }
     defer pager.Close()
 
-    // 2. Schema for typed validation. The codec doesn't enforce this;
-    //    we do, before encoding.
-    schema := &record.Schema{Columns: []record.Column{
+    // 2. Open the catalog. On a fresh database this allocates the
+    //    catalog's own B+tree and stashes its root id in the database
+    //    header. On an existing one it rebuilds the in-memory name
+    //    index from the on-disk catalog tree.
+    cat, err := catalog.Open(pager)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // 3. Define the users schema and register the table. CreateTable
+    //    allocates a fresh B+tree for the table's data, encodes the
+    //    catalog row, and inserts it into the catalog tree. If the
+    //    table already exists from a prior run, LookupTable finds it.
+    schema := record.Schema{Columns: []record.Column{
         {Name: "id", Kind: record.KindInteger, NotNull: true, PrimaryKey: true, Position: 0},
         {Name: "name", Kind: record.KindText, NotNull: true, Position: 1},
         {Name: "active", Kind: record.KindBoolean, Position: 2},
     }}
-
-    // 3. Tree handle. Create() allocates a fresh empty leaf as the
-    //    root. SetCatalogRoot persists the root id in the database
-    //    header so a future reopen can find it.
-    var tree *btree.Tree
-    if root := pager.Header().CatalogRootPageID; root == 0 {
-        tree, err = btree.Create(pager)
-        if err != nil {
-            log.Fatal(err)
-        }
-        if err := pager.SetCatalogRoot(tree.RootPageID()); err != nil {
-            log.Fatal(err)
-        }
-    } else {
-        tree = btree.Open(pager, root)
+    info, err := cat.LookupTable("users")
+    if errors.Is(err, catalog.ErrTableNotFound) {
+        info, err = cat.CreateTable("users", schema,
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, active BOOLEAN);")
+    }
+    if err != nil {
+        log.Fatal(err)
     }
 
-    // 4. Insert a few rows. Encode via record.EncodeRow; the cell's
-    //    key is the INTEGER PRIMARY KEY (the row's id).
+    // 4. Open the table's B+tree by the root page id the catalog
+    //    handed back. Insert a few rows. Encode via record.EncodeRow;
+    //    the cell's key is the INTEGER PRIMARY KEY (the row's id).
+    tree := btree.Open(pager, info.RootPageID)
     rows := []struct {
         id     int64
         name   string
@@ -135,9 +153,10 @@ func main() {
         }
     }
 
-    // 5. Persist the new root (in case splits changed it) and flush.
-    pager.SetCatalogRoot(tree.RootPageID())
-    pager.Sync()
+    // 5. Sync the catalog (which also flushes the pager).
+    if err := cat.Sync(); err != nil {
+        log.Fatal(err)
+    }
 
     // 6. Read back. Tree.Scan walks every leaf in key order.
     fmt.Println("id | name   | active")
@@ -161,14 +180,17 @@ func main() {
 
 What this snippet shows:
 
-- The four layers (storage / record / btree / your code) compose without help from any glue not in the engine.
-- Persistence works: kill the program, re-run it, and step 3 finds the existing root via `CatalogRootPageID` and `btree.Open`s it.
+- The five layers (storage / record / btree / catalog / your code) compose without help from any glue not in the engine.
+- Persistence works: kill the program, re-run it, and step 3 finds the existing `users` table via `LookupTable`; step 4 reopens its tree by `RootPageID`.
 - The `Tree.Scan` callback is invariant under splits: even if `Insert` had triggered ten splits between step 4 and step 6, `Scan` would still yield every row in key order via the leaf chain.
+- Adding a `posts` table is one more `cat.CreateTable("posts", ...)` call. Each table gets its own B+tree, all in the same `.godb` file, all surviving a close/reopen via the catalog.
 
 ## What just changed
 
-The most recent milestone is **M5 — multi-page B+tree (splits + descent + height growth)**. Chapter to read: [chapter 07](../book/07-milestone-5-multi-page-btree.md). What this means for users (well, future users) is that the engine now scales beyond ~149 rows — the M4 single-leaf ceiling — to essentially as many rows as fit on disk. Tree height grows automatically; the API doesn't change.
+The most recent milestone is **M6 — catalog**. Chapter to read: [chapter 08](../book/08-milestone-6-catalog.md). What this means for users (well, future users) is that the database can now hold **multiple named tables**, each with its own B+tree, with metadata that survives close/reopen. The catalog is itself just another B+tree — see the chapter for the bootstrap story and why `Header.CatalogRootPageID` finally has its proper meaning.
+
+Pre-M6 `.godb` files are not compatible: the catalog's leading magic byte (`0xCA`) fences them cleanly with `ErrUnsupportedCatalogVersion` on open. Throw away pre-M6 files and re-create.
 
 ## What's next
 
-**M6 — catalog.** A meta-B+tree mapping table names to root page ids + column schemas. This is the milestone where "one tree per database" stops being true. After M6 this page gets a new section showing `catalog.Create("users", schema)` and `catalog.Lookup("users")` and how those compose with `btree.Tree`.
+**M7 — SQL lexer + parser.** The engine learns to read a tiny SQL subset (`CREATE TABLE`, `INSERT`, `SELECT WHERE id = ?`) into an AST. No execution yet — that's M9, which loops the whole thing closed (`SQL → AST → plan → catalog lookup → tree operation → results`).

@@ -21,7 +21,7 @@ GoDB is an educational, portfolio-grade project that builds a real database engi
 
 ## Project status
 
-**Pre-alpha.** The storage stack, typed records, slotted pages, and a multi-page B+tree with descent/splits/root-grow are landed; a property-style smoke test puts 10,000 random rows through a Close/reopen cycle with `Validate` clean throughout. The catalog, SQL, public Go API, and CLI are still ahead. See the [Roadmap](#roadmap-abbreviated) below and the [development book](docs/book/) for the engineering narrative.
+**Pre-alpha.** The storage stack, typed records, slotted pages, a multi-page B+tree with splits and root growth, and a catalog of named tables are landed. The database can now hold multiple tables, each with its own B+tree, all surviving a close/reopen cycle. The SQL parser, public Go API, executor, and CLI are still ahead. See the [Roadmap](#roadmap-abbreviated) below and the [development book](docs/book/) for the engineering narrative.
 
 ## Roadmap (abbreviated)
 
@@ -31,8 +31,8 @@ GoDB is an educational, portfolio-grade project that builds a real database engi
 - M3 — slotted page ✅
 - M4 — single-page B+tree ✅
 - M5 — multi-page B+tree (splits, descent, root grow) ✅
-- M6 — catalog (next)
-- M7 — SQL lexer + parser
+- M6 — catalog (named tables, persisted metadata) ✅
+- M7 — SQL lexer + parser (next)
 - M8 — public Go API
 - M9 — executor
 - M10 — CLI
