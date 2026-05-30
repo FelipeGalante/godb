@@ -1,0 +1,21 @@
+# Binaries
+/godb
+*.exe
+*.test
+*.out
+
+# Database files
+*.godb
+*.godb-journal
+
+# Go build / coverage
+/dist/
+/build/
+coverage.txt
+*.prof
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
