@@ -26,7 +26,7 @@ func usagef(format string, a ...any) error {
 	return &usageError{msg: fmt.Sprintf(format, a...)}
 }
 
-const version = "godb 0.1.0-dev (M10)"
+const version = "godb 0.1.0"
 
 const usageText = `godb — a SQLite-inspired database engine
 
