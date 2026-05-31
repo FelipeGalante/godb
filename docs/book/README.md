@@ -24,8 +24,9 @@ A chapter-per-milestone narrative for the GoDB project. Read it alongside the co
 | 08 | [The Catalog: Many Named Tables (M6)](08-milestone-6-catalog.md) | What metadata is, the bootstrap problem and the privileged header slot, why the catalog is itself just another B+tree, the magic-byte fence |
 | 09 | [The SQL Frontend (M7)](09-milestone-7-sql-parser.md) | Why a lexer and parser are separate phases, recursive descent in practice, the deliberately small grammar, the "recognize and refuse" rejection pattern |
 | 10 | [The Loop Closes: Public API + Planner + Executor (M8)](10-milestone-8-public-api.md) | Three-layer dispatch (parse/plan/execute); materialization vs streaming; strict bind/scan types; the same-size cell update that finally persists table root drift |
+| 11 | [Polish and the database/sql Driver (M9)](11-milestone-9-polish-and-driver.md) | The adapter pattern (driver wraps native); database/sql value-type mapping; what "polish" looks like at this point in a database's life |
 
-Chapters for milestones 9 through 11 land as those milestones land.
+Chapters for milestones 10 and 11 land as those milestones land.
 
 ## Conventions
 
@@ -37,4 +38,4 @@ Chapters for milestones 9 through 11 land as those milestones land.
 
 ## Status
 
-This book is a living document. Each milestone adds at least one chapter. The introduction and chapters 01–10 cover M0 through M8 as of 2026-05-30.
+This book is a living document. Each milestone adds at least one chapter. The introduction and chapters 01–11 cover M0 through M9 as of 2026-05-30.

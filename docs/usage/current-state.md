@@ -1,4 +1,4 @@
-# Current state (pre-alpha, as of M8)
+# Current state (pre-alpha, as of M9)
 
 An honest snapshot of what GoDB can and can't do right now, refreshed every milestone. This page exists so a reader doesn't have to scan commit history or trial-and-error their way into the API surface.
 
@@ -6,7 +6,7 @@ If you're new here, read [`README.md`](README.md) in this directory first. It fr
 
 ## What works
 
-As of M8, `pkg/godb` exposes the engine through a stable public Go API. Internally, nine packages collaborate; all exercised by `make test` and `make race`. The [embedded-API tutorial](embedded-api.md) shows the public-facing path. The internal layers below are documented here for readers who want a map of how the engine fits together.
+As of M9, `pkg/godb` exposes the engine through a stable native Go API, and `pkg/driver` wraps it in a `database/sql/driver` so callers can use the standard library's database API instead. Internally, nine packages collaborate; all exercised by `make test` and `make race`. The [embedded-API tutorial](embedded-api.md) shows the `pkg/godb` path; the [`database/sql` tutorial](database-sql.md) shows the `sql.Open("godb", path)` path. The internal layers below are documented here for readers who want a map of how the engine fits together.
 
 ### `internal/storage` — the pager
 
@@ -100,14 +100,30 @@ The stable surface application code imports:
 - `db.Exec(ctx, sql, args...) (Result, error)` — CREATE / INSERT.
 - `db.Query(ctx, sql, args...) (*Rows, error)` — SELECT.
 - `rows.Next() bool`, `rows.Scan(dest...) error`, `rows.Columns()`, `rows.Err()`, `rows.Close()`.
+- `db.Sync() error` — explicit durability checkpoint without closing (M9).
 - `db.Begin(ctx) (*Tx, error)` — always returns `ErrTransactionsUnsupported` in v0.1 (see [ADR-0017](../adr/0017-no-transactions-in-v0-1.md)).
 - 17 exported sentinel errors so callers dispatch via `errors.Is(err, godb.ErrXxx)`.
+- `godb.SQLError` (M9) — type alias for the parser-error type, carries `Pos.Line`/`Pos.Column` for source positions.
+- `godb.StatementError` (M9) — wrapper carrying the source SQL alongside the failure; transparent to `errors.Is`/`errors.As` so sentinel dispatch still works.
 
 Walked through end-to-end in [chapter 10](../book/10-milestone-8-public-api.md). Full tutorial in [embedded-api.md](embedded-api.md).
 
-### `internal/buffer`, `internal/tx`, `internal/engine`, `pkg/driver`
+### `pkg/driver` — `database/sql/driver` wrapper (M9)
 
-Empty placeholders. The buffer pool and transactions arrive in v0.2; the `database/sql/driver` wrapper at M9; `internal/engine` may be removed if it remains unused by M11.
+A thin wrapper over `pkg/godb` that registers as `"godb"` and implements the standard library's driver interface:
+
+- `sql.Open("godb", path)` returns a `*sql.DB`.
+- `db.Exec`, `db.Query`, `db.Prepare`, `db.QueryContext`/`db.ExecContext`, `sql.Stmt.Exec`/`Query`, the standard connection pool, all work.
+- `sql.NullString` / `sql.NullInt64` / `sql.NullBool` round-trip correctly.
+- `db.Begin()` returns an error wrapping `godb.ErrTransactionsUnsupported`.
+- All `godb.ErrXxx` sentinels propagate through `errors.Is` regardless of which API path the call took.
+- Args restricted to `int64` / `string` / `bool` / `nil` (matches `pkg/godb`); `float64`, `[]byte`, `time.Time` rejected with clear messages.
+
+Documented in [`database-sql.md`](database-sql.md), [chapter 11](../book/11-milestone-9-polish-and-driver.md), and [ADR-0019](../adr/0019-driver-wraps-godb.md). The layering decision (driver wraps native, not the other way around) means the two packages evolve independently.
+
+### `internal/buffer`, `internal/tx`, `internal/engine`
+
+Empty placeholders. The buffer pool and transactions arrive in v0.2; `internal/engine` may be removed if it remains unused by M11.
 
 ## What is *not* yet usable
 
@@ -120,7 +136,7 @@ A short and honest list:
 - **No compound `WHERE` with `AND` / `OR`.** Parser rejects.
 - **No comparison operators other than `=`.** v0.2.
 - **No CLI subcommands.** `./godb` prints a banner and exits; M10 adds `exec`, `query`, `inspect`, `check`, the interactive shell.
-- **No `database/sql/driver` wrapper.** M9 adds it; until then, use `pkg/godb` directly.
+- **No transactions through the driver either.** `sql.DB.Begin()` returns the same `godb.ErrTransactionsUnsupported`. v0.2.
 - **No buffer pool.** Every read/write hits disk through the pager. v0.2.
 - **No streaming Rows.** Result sets are materialized in memory. v0.2 with the buffer pool + btree cursor.
 - **No prepared statements.** Every Exec/Query re-parses. v0.2 if there's a real need.
@@ -243,12 +259,14 @@ What this snippet shows:
 
 ## What just changed
 
-The most recent milestone is **M8 — public Go API + planner + executor**. Chapter to read: [chapter 10](../book/10-milestone-8-public-api.md). The engine now exposes a stable Go API: `godb.Open` → `db.Exec`/`db.Query` → `Rows.Next`/`Scan`, end-to-end. The planner ([`internal/planner`](../../internal/planner/)) validates SQL against the catalog and produces typed plans; the executor ([`internal/exec`](../../internal/exec/)) runs them.
+The most recent milestone is **M9 — polish + `database/sql/driver` + integration**. Chapter to read: [chapter 11](../book/11-milestone-9-polish-and-driver.md). GoDB now ships a `database/sql/driver` wrapper at `pkg/driver` — users can `sql.Open("godb", path)` and plug into the standard library's database API (prepared statements, `sql.NullString`, the connection pool, `ExecContext`/`QueryContext`). All `godb.ErrXxx` sentinels propagate through the wrapper.
 
-M8 also closed the M6 SetTableRoot persistence gap via a small `btree.UpdateCellSameSize` primitive ([ADR-0018](../adr/0018-btree-update-cell-same-size.md)). Table trees that grow new roots via splits now persist their new RootPageID — so a table you insert 10,000 rows into survives close/reopen correctly.
+Three small additions in `pkg/godb`: `SQLError` is now a public type alias (no more `internal/sql` import in user code), `StatementError` wraps errors with the source SQL for self-contained log lines, and `DB.Sync()` exposes mid-life durability checkpoints.
 
-Three new ADRs landed alongside the chapter: [ADR-0016](../adr/0016-rows-materialization.md) (rows are materialized in v0.1), [ADR-0017](../adr/0017-no-transactions-in-v0-1.md) (Begin returns ErrTransactionsUnsupported), [ADR-0018](../adr/0018-btree-update-cell-same-size.md).
+One new ADR: [ADR-0019](../adr/0019-driver-wraps-godb.md) records the composition layering — `pkg/driver` wraps `pkg/godb`, not the other way around — so each package can evolve independently.
+
+Multi-table integration tests live in [`pkg/godb/integration_test.go`](../../pkg/godb/integration_test.go) and pin behaviors that single-table tests can't surface (catalog routing under cross-table load, one table root-splits while others stay small, full multi-table workload survives reopen).
 
 ## What's next
 
-**M9 — polish + `database/sql/driver` + integration tests.** Optional `sql.Open("godb", path)` wrapper so users can plug GoDB into the broader `database/sql` ecosystem; multi-table integration scenarios; better error context (wrap with source SQL + statement number for debugging). Sets up M10 (CLI) and M11 (v0.1 release).
+**M10 — CLI.** With the public API and the driver both stable, the CLI is mostly UI over what already exists: an interactive shell (REPL-style), `exec <file.sql>` for SQL scripts, `query "<sql>"` for one-shots, `inspect header/page/tree` for poking at internals, and `check` for validation. Then M11 tags v0.1.

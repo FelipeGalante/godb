@@ -2,7 +2,7 @@
 
 This is the entry point for *using* GoDB. The [book](../book/) tells you how GoDB is built; the [PRD](../prd.md) explains what GoDB is meant to be; the [ADRs](../adr/) record why specific design choices were made. None of those answer the practical question: *how do I run GoDB, and what can it do for me right now?* That's what this directory is for.
 
-As of M8 the public Go API is real: `import "github.com/felipegalante/godb/pkg/godb"` and run SQL. The CLI binary still prints a banner and exits (full commands land at M10). The pages here describe what's usable today, what's coming, and where to read next.
+As of M9 GoDB has both a native Go API (`pkg/godb`) and a `database/sql/driver` wrapper (`pkg/driver`). You can `import "github.com/felipegalante/godb/pkg/godb"` for the Go-native shape, or `import _ "github.com/felipegalante/godb/pkg/driver"` + `sql.Open("godb", path)` to plug into the `database/sql` ecosystem. The CLI binary still prints a banner (full commands land at M10). The pages here describe what's usable today, what's coming, and where to read next.
 
 ## Where we are
 
@@ -16,16 +16,15 @@ As of M8 the public Go API is real: `import "github.com/felipegalante/godb/pkg/g
 | M5 — Multi-page B+tree | ✅ | Splits, descent, root grow. ~10,000-row trees survive close/reopen. Internal. |
 | M6 — Catalog | ✅ | Multiple named tables in one database, each with its own B+tree. Metadata persists across close/reopen via the database header. Internal. |
 | M7 — SQL lexer + parser | ✅ | `CREATE TABLE`, `INSERT`, `SELECT` parsed into a typed AST; unsupported features explicitly rejected with `ErrUnsupportedSQL`. Still internal. |
-| **M8 — Public Go API + Planner + Executor** | ✅ | **`godb.Open`, `db.Exec`, `db.Query`, `Rows.Next`/`Scan`.** End-to-end: parse → plan → execute → typed results. Multi-table tables of arbitrary size survive close/reopen. Begin returns `ErrTransactionsUnsupported` until v0.2. See [`embedded-api.md`](embedded-api.md) for the tutorial. |
-| M9 — polish + `database/sql/driver` | next | Optional `sql.Open("godb", path)` wrapper, multi-table integration tests, better error context. |
-| M9 — Executor | | End-to-end SQL execution. |
-| M10 — CLI | | Interactive shell, `exec`, `query`, `inspect`, `check`. |
+| M8 — Public Go API + Planner + Executor | ✅ | `godb.Open`, `db.Exec`, `db.Query`, `Rows.Next`/`Scan`. End-to-end: parse → plan → execute → typed results. Multi-table tables of arbitrary size survive close/reopen. Begin returns `ErrTransactionsUnsupported` until v0.2. See [`embedded-api.md`](embedded-api.md) for the tutorial. |
+| **M9 — polish + `database/sql/driver`** | ✅ | **`sql.Open("godb", path)` works.** `pkg/driver` registers as `"godb"`; full `database/sql` API: `db.Prepare`, `sql.NullString`, `ExecContext`/`QueryContext`, the connection pool. Plus `godb.SQLError` (type alias — no internal imports needed), `godb.StatementError` (carries source SQL), `DB.Sync` (mid-life flush). See [`database-sql.md`](database-sql.md) for the tutorial. |
+| M10 — CLI | next | Interactive shell, `exec`, `query`, `inspect`, `check`. |
 | M11 — v0.1 release | | Tagged release; install + use from another Go project. |
 | v0.2 | | Transactions, deletion, buffer pool, secondary indexes. |
 
 ## What you can do today
 
-### 1. Use the embedded API
+### 1. Use the embedded API (`pkg/godb`)
 
 ```bash
 go get github.com/felipegalante/godb/pkg/godb
@@ -33,11 +32,19 @@ go get github.com/felipegalante/godb/pkg/godb
 
 …then read the [**embedded-API tutorial**](embedded-api.md) for the full Open → Exec → Query → Scan loop. The supported SQL surface, parameter binding rules, scan type rules, and error contracts are all there.
 
-### 2. Read the [development book](../book/)
+### 2. Use it via `database/sql` (`pkg/driver`)
 
-The book walks the engine from the first commit forward, one chapter per milestone. It's written for someone who knows Go and wants to learn how a database engine is put together. Start at the [introduction](../book/00-introduction.md) and follow chapters in order; by the end of [chapter 10](../book/10-milestone-8-public-api.md) you've read everything the engine knows how to do today.
+```bash
+go get github.com/felipegalante/godb/pkg/driver
+```
 
-### 3. Build the CLI binary
+…then read the [**`database/sql` tutorial**](database-sql.md) for `sql.Open("godb", path)` + the standard library's API. Same SQL surface, same error sentinels (`errors.Is(err, godb.ErrXxx)` works through the wrapper), plus standard `sql.NullString`/`sql.NullInt64`, `Stmt.Exec`, the connection pool, `ExecContext`/`QueryContext`.
+
+### 3. Read the [development book](../book/)
+
+The book walks the engine from the first commit forward, one chapter per milestone. It's written for someone who knows Go and wants to learn how a database engine is put together. Start at the [introduction](../book/00-introduction.md) and follow chapters in order; by the end of [chapter 11](../book/11-milestone-9-polish-and-driver.md) you've read everything the engine knows how to do today.
+
+### 4. Build the CLI binary
 
 ```bash
 make build
@@ -46,7 +53,7 @@ make build
 
 Prints `godb: SQLite-inspired database engine in Go` and exits. The CLI subcommands (`exec`, `query`, `inspect`, `check`, the interactive shell) all land at M10.
 
-### 4. Internal-packages sandbox (optional)
+### 5. Internal-packages sandbox (optional)
 
 If you want to call the engine's internal layers directly (for learning, or to extend the engine itself), see the [snapshot in `current-state.md`](current-state.md). Internal APIs can change without warning between milestones; the public `pkg/godb` API is the stable surface.
 
@@ -61,6 +68,5 @@ If you want to call the engine's internal layers directly (for learning, or to e
 
 As features land, new pages join this directory:
 
-- M9: a `database/sql/driver` quickstart once the wrapper exists.
 - M10: `cli.md` — the interactive shell, all the `inspect` subcommands, the `check` validator.
 - v0.2: `transactions.md`, `migrations.md`.

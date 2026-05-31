@@ -169,18 +169,37 @@ Full sentinel list (in [`pkg/godb/errors.go`](../../pkg/godb/errors.go)):
 - `ErrUnsupportedArgType` (arg type not in the table above).
 - `ErrScanWrongCount`, `ErrScanTypeMismatch`, `ErrScanNullIntoNonNullable` (Scan errors).
 
-For SQL parser errors specifically, you can dig out the source position by `errors.As`-ing into a `*sql.SQLError`:
+For SQL parser errors specifically, you can dig out the source position by `errors.As`-ing into a `*godb.SQLError`:
 
 ```go
-import isql "github.com/felipegalante/godb/internal/sql"
-
-var sqlErr *isql.SQLError
+var sqlErr *godb.SQLError
 if errors.As(err, &sqlErr) {
     log.Printf("SQL error at line %d, column %d", sqlErr.Pos.Line, sqlErr.Pos.Column)
 }
 ```
 
-(Yes, that means importing `internal/sql` — temporary until M9 surfaces a public version of the same type.)
+For the SQL text that produced an error (useful in log lines), unwrap a `*godb.StatementError`:
+
+```go
+var stmtErr *godb.StatementError
+if errors.As(err, &stmtErr) {
+    log.Printf("failed SQL: %s", stmtErr.SQL)
+}
+```
+
+Sentinel dispatch (`errors.Is(err, godb.ErrXxx)`) traverses both wrappers, so you can combine these freely with the sentinel checks above.
+
+## Mid-life durability checkpoints
+
+If your process is long-running (a daemon, a stress harness) and you want to force a flush without tearing down the DB:
+
+```go
+if err := db.Sync(); err != nil {
+    log.Print(err)
+}
+```
+
+`Sync` refreshes the database header's catalog root id (in case a recent catalog operation grew the catalog tree's root) and `fsync`s the file. It's idempotent. `Close` already calls `Sync` internally; this method is for callers who want checkpoints between operations.
 
 ## Transactions
 

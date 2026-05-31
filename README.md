@@ -21,7 +21,7 @@ GoDB is an educational, portfolio-grade project that builds a real database engi
 
 ## Project status
 
-**Pre-alpha — the loop is closed.** GoDB has a working public Go API: `godb.Open` + `db.Exec`/`db.Query` run the supported SQL (`CREATE TABLE`, `INSERT`, `SELECT [WHERE id = ?]`) end-to-end against a `.godb` file. The full stack — storage, records, slotted pages, multi-page B+tree, catalog of named tables, SQL lexer + parser, planner, executor — is in place. Multiple tables of arbitrary size survive close/reopen cycles. M9 polishes (better error context, optional `database/sql/driver` wrapper); M10 brings the CLI; M11 tags v0.1. See the [Roadmap](#roadmap-abbreviated) below and the [development book](docs/book/) for the engineering narrative.
+**Pre-alpha — release-shaped.** GoDB has both a native Go API (`pkg/godb`: `Open` / `Exec` / `Query` / `Rows.Scan`) and a `database/sql/driver` wrapper (`pkg/driver`: `sql.Open("godb", path)`), with cross-table integration coverage. The supported SQL (`CREATE TABLE`, `INSERT`, `SELECT [WHERE id = ?]`) runs end-to-end against a `.godb` file. Multiple tables of arbitrary size survive close/reopen cycles. M10 brings the CLI; M11 tags v0.1. See the [Roadmap](#roadmap-abbreviated) below and the [development book](docs/book/) for the engineering narrative.
 
 ## Roadmap (abbreviated)
 
@@ -34,8 +34,8 @@ GoDB is an educational, portfolio-grade project that builds a real database engi
 - M6 — catalog (named tables, persisted metadata) ✅
 - M7 — SQL lexer + parser (small grammar, recursive descent) ✅
 - M8 — public Go API + planner + executor (the loop closes) ✅
-- M9 — polish, integration, `database/sql/driver` (next)
-- M10 — CLI
+- M9 — polish + `database/sql/driver` + integration tests ✅
+- M10 — CLI (next)
 - M11 — v0.1 release
 
 ## Install (dev)
@@ -99,7 +99,46 @@ func main() {
 
 Supported SQL in v0.1: `CREATE TABLE`, `INSERT`, `SELECT [WHERE primary_key = ?]`. Unsupported constructs (`JOIN`, `GROUP BY`, `UPDATE`, `DELETE`, `AND`/`OR` in WHERE, …) return `godb.ErrUnsupportedSQL` with a position-aware message. Transactions arrive in v0.2 (`db.Begin` returns `godb.ErrTransactionsUnsupported` in v0.1). The CLI binary still just prints a banner; full commands land at M10.
 
-See [`docs/usage/`](docs/usage/) for the full embedded-API tutorial and the honest "what works right now, what's coming" guide.
+### Or via `database/sql`
+
+```go
+package main
+
+import (
+    "database/sql"
+    "fmt"
+    "log"
+
+    _ "github.com/felipegalante/godb/pkg/driver"  // registers the "godb" driver
+)
+
+func main() {
+    db, err := sql.Open("godb", "app.godb")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    db.Exec(`CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`)
+    db.Exec(`INSERT INTO users VALUES (?, ?)`, 1, "Felipe")
+
+    rows, err := db.Query(`SELECT * FROM users WHERE id = ?`, 1)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer rows.Close()
+    for rows.Next() {
+        var id int64
+        var name string
+        rows.Scan(&id, &name)
+        fmt.Println(id, name)
+    }
+}
+```
+
+`sql.NullString` / `sql.NullInt64`, `ExecContext`/`QueryContext`, prepared statements via `db.Prepare`, and the standard connection pool all work as usual. Transactions still return `godb.ErrTransactionsUnsupported` via `db.Begin` — same v0.1 limitation as the native API.
+
+See [`docs/usage/`](docs/usage/) for the full guides — [`embedded-api.md`](docs/usage/embedded-api.md) for `pkg/godb`, [`database-sql.md`](docs/usage/database-sql.md) for the `database/sql` path — and the honest "what works right now, what's coming" overview.
 
 ## Development
 

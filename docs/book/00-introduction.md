@@ -36,10 +36,10 @@ So the reader-facing index is:
 | Catalog | M6 | [08](08-milestone-6-catalog.md) | [`internal/catalog/`](../../internal/catalog/) |
 | SQL parser | M7 | [09](09-milestone-7-sql-parser.md) | [`internal/sql/`](../../internal/sql/) |
 | Public API + Planner + Executor | M8 | [10](10-milestone-8-public-api.md) | [`pkg/godb/`](../../pkg/godb/) + [`internal/planner/`](../../internal/planner/) + [`internal/exec/`](../../internal/exec/) |
-| Polish + database/sql driver | M9 | (next) | (next) |
-| CLI | M10 | (later) | (later) |
+| Polish + database/sql driver | M9 | [11](11-milestone-9-polish-and-driver.md) | [`pkg/driver/`](../../pkg/driver/) + additions to `pkg/godb/` |
+| CLI | M10 | (next) | (next) |
 
-When you finish chapter 10, you'll have read about everything that exists today. The rest of the book grows with the code.
+When you finish chapter 11, you'll have read about everything that exists today. The rest of the book grows with the code.
 
 ## How chapters are structured
 
