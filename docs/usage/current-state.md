@@ -1,4 +1,4 @@
-# Current state (pre-alpha, as of M9)
+# Current state (pre-alpha, as of M10)
 
 An honest snapshot of what GoDB can and can't do right now, refreshed every milestone. This page exists so a reader doesn't have to scan commit history or trial-and-error their way into the API surface.
 
@@ -6,7 +6,7 @@ If you're new here, read [`README.md`](README.md) in this directory first. It fr
 
 ## What works
 
-As of M9, `pkg/godb` exposes the engine through a stable native Go API, and `pkg/driver` wraps it in a `database/sql/driver` so callers can use the standard library's database API instead. Internally, nine packages collaborate; all exercised by `make test` and `make race`. The [embedded-API tutorial](embedded-api.md) shows the `pkg/godb` path; the [`database/sql` tutorial](database-sql.md) shows the `sql.Open("godb", path)` path. The internal layers below are documented here for readers who want a map of how the engine fits together.
+As of M10, `pkg/godb` exposes the engine through a stable native Go API, `pkg/driver` wraps it in a `database/sql/driver` so callers can use the standard library's database API instead, and the `godb` binary (`internal/cli`) drives and inspects a database from a shell. Internally, the same packages collaborate; all exercised by `make test` and `make race`. The [embedded-API tutorial](embedded-api.md) shows the `pkg/godb` path; the [`database/sql` tutorial](database-sql.md) shows the `sql.Open("godb", path)` path; the [CLI tutorial](cli.md) shows the binary. The internal layers below are documented here for readers who want a map of how the engine fits together.
 
 ### `internal/storage` — the pager
 
@@ -121,6 +121,20 @@ A thin wrapper over `pkg/godb` that registers as `"godb"` and implements the sta
 
 Documented in [`database-sql.md`](database-sql.md), [chapter 11](../book/11-milestone-9-polish-and-driver.md), and [ADR-0019](../adr/0019-driver-wraps-godb.md). The layering decision (driver wraps native, not the other way around) means the two packages evolve independently.
 
+### `internal/cli` — the `godb` command-line interface (M10)
+
+A stdlib-only CLI (no third-party framework) that drives SQL through `pkg/godb` and reads the on-disk structures directly through `internal/{storage,btree,catalog}`. `cmd/godb/main.go` is a thin wrapper over `cli.Run`. The database path is the first argument, sqlite-style.
+
+- `godb <db>` — interactive shell (REPL). Multi-line statements terminated by `;`; `.`-prefixed meta-commands (`.help`, `.tables`, `.schema [name]`, `.mode table|csv`, `.dump`, `.exit`/`.quit`).
+- `godb <db> exec <file.sql>` — run a multi-statement script; stops on the first error with its index.
+- `godb <db> query "<sql>"` — run one statement, render the result.
+- `godb <db> dump` — emit SQL (CREATE + INSERTs) that reloads cleanly through `exec`.
+- `godb <db> inspect header | page <n> | tree` — read the file header, a page's slotted-page header, or walk every table's B+tree.
+- `godb <db> check` — run `Tree.Validate` on the catalog tree and every table tree; non-zero exit on corruption.
+- `-format table|csv` selects row output; data goes to stdout, prompts/status/errors to stderr; exit codes are `0`/`1`/`2` (success/runtime/usage).
+
+Shell meta-commands read the table list through a small read-only accessor, `db.Tables() []TableInfo`, on the *open* handle rather than a second pager handle — the pager has no cross-process lock, so a second handle would be an uncoordinated view. Documented in [`cli.md`](cli.md), [chapter 12](../book/12-milestone-10-cli.md), and [ADR-0020](../adr/0020-cli-architecture.md).
+
 ### `internal/buffer`, `internal/tx`, `internal/engine`
 
 Empty placeholders. The buffer pool and transactions arrive in v0.2; `internal/engine` may be removed if it remains unused by M11.
@@ -135,7 +149,8 @@ A short and honest list:
 - **No non-primary-key `WHERE`.** Planner returns `ErrWhereOnlyPrimaryKey`. v0.2 adds `TableScan + Filter`.
 - **No compound `WHERE` with `AND` / `OR`.** Parser rejects.
 - **No comparison operators other than `=`.** v0.2.
-- **No CLI subcommands.** `./godb` prints a banner and exits; M10 adds `exec`, `query`, `inspect`, `check`, the interactive shell.
+- **No `?` binding from the CLI.** SQL typed at the CLI is literal; bind args are a programmatic feature (use `pkg/godb`). Deliberate v0.1 omission.
+- **No concurrent CLI sessions on one file.** Single-writer, no cross-process lock; two writing `godb` processes against one file is unsafe.
 - **No transactions through the driver either.** `sql.DB.Begin()` returns the same `godb.ErrTransactionsUnsupported`. v0.2.
 - **No buffer pool.** Every read/write hits disk through the pager. v0.2.
 - **No streaming Rows.** Result sets are materialized in memory. v0.2 with the buffer pool + btree cursor.
@@ -259,14 +274,12 @@ What this snippet shows:
 
 ## What just changed
 
-The most recent milestone is **M9 — polish + `database/sql/driver` + integration**. Chapter to read: [chapter 11](../book/11-milestone-9-polish-and-driver.md). GoDB now ships a `database/sql/driver` wrapper at `pkg/driver` — users can `sql.Open("godb", path)` and plug into the standard library's database API (prepared statements, `sql.NullString`, the connection pool, `ExecContext`/`QueryContext`). All `godb.ErrXxx` sentinels propagate through the wrapper.
+The most recent milestone is **M10 — CLI**. Chapter to read: [chapter 12](../book/12-milestone-10-cli.md); tutorial: [`cli.md`](cli.md). GoDB now ships a real `godb` binary. SQL runs through it three ways — an interactive shell (`godb <db>`), `exec <file.sql>` for scripts, and `query "<sql>"` for one-shots — and three introspection commands read the database directly: `inspect header/page/tree`, `check` (runs `Tree.Validate` on every tree), and `dump` (round-trippable SQL). A `-format table|csv` flag and a `.mode` meta-command control row output. The database path is the first argument, sqlite-style; a bare `godb <db>` opens the shell.
 
-Three small additions in `pkg/godb`: `SQLError` is now a public type alias (no more `internal/sql` import in user code), `StatementError` wraps errors with the source SQL for self-contained log lines, and `DB.Sync()` exposes mid-life durability checkpoints.
+The CLI is stdlib-only — no cobra — and all logic lives in `internal/cli` with injected writers, so it's unit-testable in-process. One small public-API addition backs the shell's `.tables`/`.schema` and `dump`: `db.Tables() []TableInfo`, a read-only accessor on the open handle (a second pager handle would be an uncoordinated view, since the pager has no cross-process lock).
 
-One new ADR: [ADR-0019](../adr/0019-driver-wraps-godb.md) records the composition layering — `pkg/driver` wraps `pkg/godb`, not the other way around — so each package can evolve independently.
-
-Multi-table integration tests live in [`pkg/godb/integration_test.go`](../../pkg/godb/integration_test.go) and pin behaviors that single-table tests can't surface (catalog routing under cross-table load, one table root-splits while others stay small, full multi-table workload survives reopen).
+One new ADR: [ADR-0020](../adr/0020-cli-architecture.md) records the load-bearing CLI choices — stdlib-only, `internal/cli` + thin `main`, db-first invocation, a purpose-built statement splitter rather than re-running the lexer, and the `db.Tables()` accessor instead of a second handle.
 
 ## What's next
 
-**M10 — CLI.** With the public API and the driver both stable, the CLI is mostly UI over what already exists: an interactive shell (REPL-style), `exec <file.sql>` for SQL scripts, `query "<sql>"` for one-shots, `inspect header/page/tree` for poking at internals, and `check` for validation. Then M11 tags v0.1.
+**M11 — v0.1 release.** The engine, both APIs, and the CLI are all in place — the loop is closed. M11 is about packaging: tagging v0.1, verifying a clean `go get` of `pkg/godb` and `pkg/driver` from a fresh module, and the release hygiene (version string, changelog, install story) that turns the repository into a release.

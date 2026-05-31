@@ -2,7 +2,7 @@
 
 This is the entry point for *using* GoDB. The [book](../book/) tells you how GoDB is built; the [PRD](../prd.md) explains what GoDB is meant to be; the [ADRs](../adr/) record why specific design choices were made. None of those answer the practical question: *how do I run GoDB, and what can it do for me right now?* That's what this directory is for.
 
-As of M9 GoDB has both a native Go API (`pkg/godb`) and a `database/sql/driver` wrapper (`pkg/driver`). You can `import "github.com/felipegalante/godb/pkg/godb"` for the Go-native shape, or `import _ "github.com/felipegalante/godb/pkg/driver"` + `sql.Open("godb", path)` to plug into the `database/sql` ecosystem. The CLI binary still prints a banner (full commands land at M10). The pages here describe what's usable today, what's coming, and where to read next.
+As of M10 GoDB has three front doors: a native Go API (`pkg/godb`), a `database/sql/driver` wrapper (`pkg/driver`), and a command-line interface (the `godb` binary). You can `import "github.com/felipegalante/godb/pkg/godb"` for the Go-native shape, `import _ "github.com/felipegalante/godb/pkg/driver"` + `sql.Open("godb", path)` to plug into the `database/sql` ecosystem, or run `godb <db> ...` to drive a database from a shell without writing any Go. The pages here describe what's usable today, what's coming, and where to read next.
 
 ## Where we are
 
@@ -18,8 +18,8 @@ As of M9 GoDB has both a native Go API (`pkg/godb`) and a `database/sql/driver` 
 | M7 — SQL lexer + parser | ✅ | `CREATE TABLE`, `INSERT`, `SELECT` parsed into a typed AST; unsupported features explicitly rejected with `ErrUnsupportedSQL`. Still internal. |
 | M8 — Public Go API + Planner + Executor | ✅ | `godb.Open`, `db.Exec`, `db.Query`, `Rows.Next`/`Scan`. End-to-end: parse → plan → execute → typed results. Multi-table tables of arbitrary size survive close/reopen. Begin returns `ErrTransactionsUnsupported` until v0.2. See [`embedded-api.md`](embedded-api.md) for the tutorial. |
 | **M9 — polish + `database/sql/driver`** | ✅ | **`sql.Open("godb", path)` works.** `pkg/driver` registers as `"godb"`; full `database/sql` API: `db.Prepare`, `sql.NullString`, `ExecContext`/`QueryContext`, the connection pool. Plus `godb.SQLError` (type alias — no internal imports needed), `godb.StatementError` (carries source SQL), `DB.Sync` (mid-life flush). See [`database-sql.md`](database-sql.md) for the tutorial. |
-| M10 — CLI | next | Interactive shell, `exec`, `query`, `inspect`, `check`. |
-| M11 — v0.1 release | | Tagged release; install + use from another Go project. |
+| **M10 — CLI** | ✅ | **The `godb` binary.** Interactive shell (REPL with `.tables`/`.schema`/`.mode`/`.dump`), `exec <file.sql>`, `query "<sql>"`, `inspect header/page/tree`, `check`, `dump`. `-format table\|csv`. See [`cli.md`](cli.md) for the tutorial. |
+| M11 — v0.1 release | next | Tagged release; install + use from another Go project. |
 | v0.2 | | Transactions, deletion, buffer pool, secondary indexes. |
 
 ## What you can do today
@@ -44,14 +44,19 @@ go get github.com/felipegalante/godb/pkg/driver
 
 The book walks the engine from the first commit forward, one chapter per milestone. It's written for someone who knows Go and wants to learn how a database engine is put together. Start at the [introduction](../book/00-introduction.md) and follow chapters in order; by the end of [chapter 11](../book/11-milestone-9-polish-and-driver.md) you've read everything the engine knows how to do today.
 
-### 4. Build the CLI binary
+### 4. Use the CLI binary
 
 ```bash
 make build
-./godb
+./godb data.godb                            # interactive shell
+./godb data.godb exec schema.sql            # run a SQL script
+./godb data.godb query "SELECT * FROM users"
+./godb data.godb dump > backup.sql          # round-trippable SQL
+./godb data.godb inspect tree               # walk every table's B+tree
+./godb data.godb check                      # validate every tree
 ```
 
-Prints `godb: SQLite-inspired database engine in Go` and exits. The CLI subcommands (`exec`, `query`, `inspect`, `check`, the interactive shell) all land at M10.
+The database path is the first argument, sqlite-style; a bare `godb <db>` opens the interactive shell. Full walkthrough with every command and worked examples: the [**CLI tutorial**](cli.md).
 
 ### 5. Internal-packages sandbox (optional)
 
@@ -68,5 +73,4 @@ If you want to call the engine's internal layers directly (for learning, or to e
 
 As features land, new pages join this directory:
 
-- M10: `cli.md` — the interactive shell, all the `inspect` subcommands, the `check` validator.
 - v0.2: `transactions.md`, `migrations.md`.
