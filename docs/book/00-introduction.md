@@ -38,9 +38,9 @@ So the reader-facing index is:
 | Public API + Planner + Executor | M8 | [10](10-milestone-8-public-api.md) | [`pkg/godb/`](../../pkg/godb/) + [`internal/planner/`](../../internal/planner/) + [`internal/exec/`](../../internal/exec/) |
 | Polish + database/sql driver | M9 | [11](11-milestone-9-polish-and-driver.md) | [`pkg/driver/`](../../pkg/driver/) + additions to `pkg/godb/` |
 | CLI | M10 | [12](12-milestone-10-cli.md) | [`internal/cli/`](../../internal/cli/) + [`cmd/godb/`](../../cmd/godb/) |
-| v0.1 release | M11 | (next) | (next) |
+| v0.1 release | M11 | [13](13-milestone-11-release.md) | the `v0.1.0` tag + [`CHANGELOG.md`](../../CHANGELOG.md) |
 
-When you finish chapter 12, you'll have read about everything that exists today. The rest of the book grows with the code.
+When you finish chapter 13, you'll have read about everything in the v0.1.0 release — the whole engine as it stands today. The rest of the book grows with the code, starting with v0.2.
 
 ## How chapters are structured
 

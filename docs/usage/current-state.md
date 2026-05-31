@@ -1,4 +1,4 @@
-# Current state (pre-alpha, as of M10)
+# Current state (v0.1.0, as of M11)
 
 An honest snapshot of what GoDB can and can't do right now, refreshed every milestone. This page exists so a reader doesn't have to scan commit history or trial-and-error their way into the API surface.
 
@@ -6,7 +6,7 @@ If you're new here, read [`README.md`](README.md) in this directory first. It fr
 
 ## What works
 
-As of M10, `pkg/godb` exposes the engine through a stable native Go API, `pkg/driver` wraps it in a `database/sql/driver` so callers can use the standard library's database API instead, and the `godb` binary (`internal/cli`) drives and inspects a database from a shell. Internally, the same packages collaborate; all exercised by `make test` and `make race`. The [embedded-API tutorial](embedded-api.md) shows the `pkg/godb` path; the [`database/sql` tutorial](database-sql.md) shows the `sql.Open("godb", path)` path; the [CLI tutorial](cli.md) shows the binary. The internal layers below are documented here for readers who want a map of how the engine fits together.
+As of the **v0.1.0** release (M11), `pkg/godb` exposes the engine through a stable native Go API, `pkg/driver` wraps it in a `database/sql/driver` so callers can use the standard library's database API instead, and the `godb` binary (`internal/cli`) drives and inspects a database from a shell. Internally, the same packages collaborate; all exercised by `make test` and `make race`. The [embedded-API tutorial](embedded-api.md) shows the `pkg/godb` path; the [`database/sql` tutorial](database-sql.md) shows the `sql.Open("godb", path)` path; the [CLI tutorial](cli.md) shows the binary. The internal layers below are documented here for readers who want a map of how the engine fits together.
 
 ### `internal/storage` — the pager
 
@@ -274,12 +274,10 @@ What this snippet shows:
 
 ## What just changed
 
-The most recent milestone is **M10 — CLI**. Chapter to read: [chapter 12](../book/12-milestone-10-cli.md); tutorial: [`cli.md`](cli.md). GoDB now ships a real `godb` binary. SQL runs through it three ways — an interactive shell (`godb <db>`), `exec <file.sql>` for scripts, and `query "<sql>"` for one-shots — and three introspection commands read the database directly: `inspect header/page/tree`, `check` (runs `Tree.Validate` on every tree), and `dump` (round-trippable SQL). A `-format table|csv` flag and a `.mode` meta-command control row output. The database path is the first argument, sqlite-style; a bare `godb <db>` opens the shell.
+The most recent milestone is **M11 — the v0.1.0 release**. Chapter to read: [chapter 13](../book/13-milestone-11-release.md). GoDB is now tagged `v0.1.0` and installable from a fresh module: `go install github.com/felipegalante/godb/cmd/godb@v0.1.0` for the CLI, `go get github.com/felipegalante/godb/pkg/godb@v0.1.0` (or `.../pkg/driver`) for the library. M11 added no engine code — it's packaging: the version string moved from `0.1.0-dev` to `0.1.0`, a [CHANGELOG](../../CHANGELOG.md) landed, and the README gained a real install story.
 
-The CLI is stdlib-only — no cobra — and all logic lives in `internal/cli` with injected writers, so it's unit-testable in-process. One small public-API addition backs the shell's `.tables`/`.schema` and `dump`: `db.Tables() []TableInfo`, a read-only accessor on the open handle (a second pager handle would be an uncoordinated view, since the pager has no cross-process lock).
-
-One new ADR: [ADR-0020](../adr/0020-cli-architecture.md) records the load-bearing CLI choices — stdlib-only, `internal/cli` + thin `main`, db-first invocation, a purpose-built statement splitter rather than re-running the lexer, and the `db.Tables()` accessor instead of a second handle.
+One new ADR: [ADR-0021](../adr/0021-versioning-and-compatibility.md) records the versioning and compatibility policy. The **stable surface within a minor version** is `pkg/godb` + `pkg/driver` + the `godb` CLI + the on-disk `.godb` format; `internal/` is explicitly not covered and may change any release. Pre-1.0, minor bumps (v0.1 → v0.2) are where breaking changes land; a `.godb` file stays readable within its minor series.
 
 ## What's next
 
-**M11 — v0.1 release.** The engine, both APIs, and the CLI are all in place — the loop is closed. M11 is about packaging: tagging v0.1, verifying a clean `go get` of `pkg/godb` and `pkg/driver` from a fresh module, and the release hygiene (version string, changelog, install story) that turns the repository into a release.
+**v0.2.** With v0.1 tagged and the compatibility line drawn, the next phase is the first one allowed to reshape the stable surface: a buffer pool in front of the pager, transactions with a rollback journal (so `Begin` returns a real `*Tx`), `UPDATE`/`DELETE`, range scans beyond primary-key equality, secondary indexes, freelist reuse, and page checksums. Several of those touch both the API and the on-disk format, which is why they wait for a minor bump rather than a `v0.1.x` patch.

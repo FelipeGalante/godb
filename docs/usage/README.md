@@ -2,7 +2,7 @@
 
 This is the entry point for *using* GoDB. The [book](../book/) tells you how GoDB is built; the [PRD](../prd.md) explains what GoDB is meant to be; the [ADRs](../adr/) record why specific design choices were made. None of those answer the practical question: *how do I run GoDB, and what can it do for me right now?* That's what this directory is for.
 
-As of M10 GoDB has three front doors: a native Go API (`pkg/godb`), a `database/sql/driver` wrapper (`pkg/driver`), and a command-line interface (the `godb` binary). You can `import "github.com/felipegalante/godb/pkg/godb"` for the Go-native shape, `import _ "github.com/felipegalante/godb/pkg/driver"` + `sql.Open("godb", path)` to plug into the `database/sql` ecosystem, or run `godb <db> ...` to drive a database from a shell without writing any Go. The pages here describe what's usable today, what's coming, and where to read next.
+GoDB is released as **v0.1.0** and has three front doors: a native Go API (`pkg/godb`), a `database/sql/driver` wrapper (`pkg/driver`), and a command-line interface (the `godb` binary). You can `go get github.com/felipegalante/godb/pkg/godb` for the Go-native shape, `import _ "github.com/felipegalante/godb/pkg/driver"` + `sql.Open("godb", path)` to plug into the `database/sql` ecosystem, or `go install github.com/felipegalante/godb/cmd/godb@v0.1.0` to drive a database from a shell without writing any Go. The pages here describe what's usable today, what's coming, and where to read next.
 
 ## Where we are
 
@@ -19,8 +19,8 @@ As of M10 GoDB has three front doors: a native Go API (`pkg/godb`), a `database/
 | M8 — Public Go API + Planner + Executor | ✅ | `godb.Open`, `db.Exec`, `db.Query`, `Rows.Next`/`Scan`. End-to-end: parse → plan → execute → typed results. Multi-table tables of arbitrary size survive close/reopen. Begin returns `ErrTransactionsUnsupported` until v0.2. See [`embedded-api.md`](embedded-api.md) for the tutorial. |
 | **M9 — polish + `database/sql/driver`** | ✅ | **`sql.Open("godb", path)` works.** `pkg/driver` registers as `"godb"`; full `database/sql` API: `db.Prepare`, `sql.NullString`, `ExecContext`/`QueryContext`, the connection pool. Plus `godb.SQLError` (type alias — no internal imports needed), `godb.StatementError` (carries source SQL), `DB.Sync` (mid-life flush). See [`database-sql.md`](database-sql.md) for the tutorial. |
 | **M10 — CLI** | ✅ | **The `godb` binary.** Interactive shell (REPL with `.tables`/`.schema`/`.mode`/`.dump`), `exec <file.sql>`, `query "<sql>"`, `inspect header/page/tree`, `check`, `dump`. `-format table\|csv`. See [`cli.md`](cli.md) for the tutorial. |
-| M11 — v0.1 release | next | Tagged release; install + use from another Go project. |
-| v0.2 | | Transactions, deletion, buffer pool, secondary indexes. |
+| **M11 — v0.1 release** | ✅ | **Tagged `v0.1.0`.** `go install …/cmd/godb@v0.1.0` and `go get …/pkg/godb@v0.1.0` work from a fresh module. CHANGELOG + versioning/compatibility policy ([ADR-0021](../adr/0021-versioning-and-compatibility.md)). |
+| v0.2 | next | Transactions, deletion, buffer pool, secondary indexes. |
 
 ## What you can do today
 
@@ -64,7 +64,7 @@ If you want to call the engine's internal layers directly (for learning, or to e
 
 ## When to read what
 
-- **Just want to use it?** [`embedded-api.md`](embedded-api.md). Then `pkg/godb` Godoc when published.
+- **Just want to use it?** [`embedded-api.md`](embedded-api.md), then the [`pkg/godb` reference on pkg.go.dev](https://pkg.go.dev/github.com/felipegalante/godb/pkg/godb).
 - **Want to learn how databases work?** Start with the [book introduction](../book/00-introduction.md). It assumes Go knowledge and zero database-internals knowledge.
 - **Want to understand a specific decision?** Browse the [ADR index](../adr/).
 - **Want to know what's deliberately *not* being built?** Read the [PRD](../prd.md), specifically the Vision/Non-vision and Out-of-scope sections.

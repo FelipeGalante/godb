@@ -10,8 +10,10 @@ by design — a clean, small, teachable engine.
 - Go 1.22 (pinned via mise)
 - Zero external dependencies — stdlib-only throughout, no exceptions.
 
-**Current status:** M0–M10 all complete and landed on `main`. Pre-alpha,
-release-shaped. M11 (tag v0.1) is the only remaining work.
+**Current status:** M0–M11 all complete and landed on `main`. **v0.1.0 is
+tagged and released** (`go install …/cmd/godb@v0.1.0`, `go get …/pkg/godb`).
+Next work is v0.2 (buffer pool, transactions, UPDATE/DELETE, range scans,
+secondary indexes).
 
 ---
 
@@ -30,7 +32,7 @@ release-shaped. M11 (tag v0.1) is the only remaining work.
 | M8 | Public Go API + planner + executor | ✅ |
 | M9 | Polish + `database/sql` driver + integration tests | ✅ |
 | M10 | CLI (shell, exec, query, inspect, check, dump) | ✅ |
-| M11 | Tag v0.1 release | ⬜ next |
+| M11 | Tag v0.1 release | ✅ |
 
 ---
 
@@ -192,13 +194,14 @@ make clean    # remove binary + *.godb files
 
 ---
 
-## Next: M11 — v0.1 release
+## Next: v0.2
 
-No new code. Pure packaging:
-- Bump/confirm version string in source
-- `git tag v0.1.0`
-- Verify `go get github.com/felipegalante/godb` from a fresh module
-- Final README / CHANGELOG pass
+v0.1.0 is shipped. The first v0.2 minor bump is where the stable surface is
+allowed to change (see [ADR-0021](docs/adr/0021-versioning-and-compatibility.md)).
+Planned: buffer pool, transactions + rollback journal (real `*Tx`),
+`UPDATE`/`DELETE`, range scans beyond PK equality, secondary indexes, freelist
+reuse, page checksums. Several touch both the API and the on-disk format — hence
+a minor bump, not a `v0.1.x` patch.
 
 ---
 
@@ -216,7 +219,7 @@ No new code. Pure packaging:
 | `internal/btree/tree.go` | B+tree operations (splits, descent) |
 | `internal/catalog/catalog.go` | Table metadata, bootstrap |
 | `internal/storage/pager.go` | Page-level file I/O |
-| `docs/adr/` | 20 ADRs (ADR-0001 – ADR-0020) |
-| `docs/book/` | 13 chapters (M0–M10 narrative) |
+| `docs/adr/` | 21 ADRs (ADR-0001 – ADR-0021) |
+| `docs/book/` | 14 chapters (M0–M11 narrative) |
 | `docs/usage/` | User-facing guides (CLI, embedded API, driver) |
 | `docs/prd.md` | Product Requirements Document |

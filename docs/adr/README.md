@@ -28,6 +28,7 @@ ADRs are short, dated, immutable documents. They are not the same as the [PRD](.
 | 0018 | [`btree.UpdateCellSameSize` — same-size in-place cell update](0018-btree-update-cell-same-size.md) | Accepted |
 | 0019 | [`pkg/driver` wraps `pkg/godb`; the layering is composition, not reimplementation](0019-driver-wraps-godb.md) | Accepted |
 | 0020 | [The CLI is stdlib-only, lives in `internal/cli`, and is db-first](0020-cli-architecture.md) | Accepted |
+| 0021 | [Semantic versioning and the public/internal compatibility boundary](0021-versioning-and-compatibility.md) | Accepted |
 
 ## How to add an ADR
 
