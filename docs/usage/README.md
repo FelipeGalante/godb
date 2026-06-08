@@ -1,6 +1,6 @@
 # Using GoDB
 
-This is the entry point for *using* GoDB. The [book](../book/) tells you how GoDB is built; the [PRD](../prd.md) explains what GoDB is meant to be; the [ADRs](../adr/) record why specific design choices were made. None of those answer the practical question: *how do I run GoDB, and what can it do for me right now?* That's what this directory is for.
+This is the entry point for *using* GoDB. The [book](../book/) walks through GoDB's internals; the [PRD](../prd.md) explains what GoDB is meant to be; the [ADRs](../adr/) record why specific design choices were made. None of those answer the practical question: *how do I run GoDB, and what can it do for me right now?* That's what this directory is for.
 
 GoDB is released as **v0.1.0** and has three front doors: a native Go API (`pkg/godb`), a `database/sql/driver` wrapper (`pkg/driver`), and a command-line interface (the `godb` binary). You can `go get github.com/felipegalante/godb/pkg/godb` for the Go-native shape, `import _ "github.com/felipegalante/godb/pkg/driver"` + `sql.Open("godb", path)` to plug into the `database/sql` ecosystem, or `go install github.com/felipegalante/godb/cmd/godb@v0.1.0` to drive a database from a shell without writing any Go. The pages here describe what's usable today, what's coming, and where to read next.
 
@@ -42,7 +42,7 @@ go get github.com/felipegalante/godb/pkg/driver
 
 ### 3. Read the [development book](../book/)
 
-The book walks the engine from the first commit forward, one chapter per milestone. It's written for someone who knows Go and wants to learn how a database engine is put together. Start at the [introduction](../book/00-introduction.md) and follow chapters in order; by the end of [chapter 11](../book/11-milestone-9-polish-and-driver.md) you've read everything the engine knows how to do today.
+The book walks the engine from the first commit forward, one chapter per milestone. It's written for developers who know Go and want a guided path through the internals of a database engine. Start at the [introduction](../book/00-introduction.md) and follow chapters in order; by the end of [chapter 13](../book/13-milestone-11-release.md) you've read through the v0.1.0 release.
 
 ### 4. Use the CLI binary
 
@@ -60,12 +60,12 @@ The database path is the first argument, sqlite-style; a bare `godb <db>` opens 
 
 ### 5. Internal-packages sandbox (optional)
 
-If you want to call the engine's internal layers directly (for learning, or to extend the engine itself), see the [snapshot in `current-state.md`](current-state.md). Internal APIs can change without warning between milestones; the public `pkg/godb` API is the stable surface.
+If you want to call the engine's internal layers directly (for inspection, or to extend the engine itself), see the [snapshot in `current-state.md`](current-state.md). Internal APIs can change without warning between milestones; the public `pkg/godb` API is the stable surface.
 
 ## When to read what
 
 - **Just want to use it?** [`embedded-api.md`](embedded-api.md), then the [`pkg/godb` reference on pkg.go.dev](https://pkg.go.dev/github.com/felipegalante/godb/pkg/godb).
-- **Want to learn how databases work?** Start with the [book introduction](../book/00-introduction.md). It assumes Go knowledge and zero database-internals knowledge.
+- **Want to understand the internals?** Start with the [book introduction](../book/00-introduction.md). It assumes Go knowledge and walks through each layer from the file format up to the public API.
 - **Want to understand a specific decision?** Browse the [ADR index](../adr/).
 - **Want to know what's deliberately *not* being built?** Read the [PRD](../prd.md), specifically the Vision/Non-vision and Out-of-scope sections.
 

@@ -4,7 +4,7 @@
 
 By the end of [Chapter 06](06-milestone-4-b-tree-single-page.md) we had a `Tree` type that worked beautifully — for about 149 small rows. Insert one more and the single root-leaf hit `ErrPageFull`, returned the error to the caller, and gave up. It was a B+tree in the same way a single picture frame is a museum: the right shape, the wrong size.
 
-This chapter is where the tree actually becomes a tree. We're going to teach it to **split** an overflowing leaf into two, **introduce internal pages** to keep separator keys, **propagate** splits upward when a parent itself overflows, and **grow the root** when even the root has nowhere to push its overflow. The public API (`Insert`, `Get`, `Scan`, `Validate`, `Create`, `Open`, `RootPageID`) doesn't change at all. Every caller that worked at the end of M4 keeps working. What changes is everything beneath the surface.
+This chapter is where the tree actually becomes a tree. We're going to add the ability to **split** an overflowing leaf into two, **introduce internal pages** to keep separator keys, **propagate** splits upward when a parent itself overflows, and **grow the root** when even the root has nowhere to push its overflow. The public API (`Insert`, `Get`, `Scan`, `Validate`, `Create`, `Open`, `RootPageID`) doesn't change at all. Every caller that worked at the end of M4 keeps working. What changes is everything beneath the surface.
 
 After M5, the engine supports tables with essentially unbounded row count (limited by disk and the 64-bit `PageID` space). The next milestone (M6 — the catalog) finally builds something *on top* of a real index instead of around a 149-row toy.
 
@@ -54,7 +54,7 @@ A split touches multiple pages: the original leaf is rewritten, a new leaf is al
 
 **M5 does not solve this.** It ships the split logic and accepts the gap. v0.2 will introduce a rollback journal: a separate file recording the original contents of every page about to be modified during a transaction, so that on crash recovery, the page contents can be restored to their pre-transaction state. With a journal, an in-progress split becomes "rolled back to the pre-split state" automatically.
 
-Without a journal, the practical impact is: if you crash mid-split, you may have leaked pages (file grew, some pages unreachable) or worse, an internal page pointing at the wrong child. For v0.1, this is the kind of limitation a learning-resource project should call out plainly: *we can construct a healthy tree from a healthy starting state, but we can't promise the tree is healthy after a crash*. Don't rely on M5 for crash safety; lean on it for everything else.
+Without a journal, the practical impact is: if you crash mid-split, you may have leaked pages (file grew, some pages unreachable) or worse, an internal page pointing at the wrong child. For v0.1, this is the kind of limitation the release should call out plainly: *we can construct a healthy tree from a healthy starting state, but we can't promise the tree is healthy after a crash*. Don't rely on M5 for crash safety; lean on it for everything else.
 
 ## Decisions
 

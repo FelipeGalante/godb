@@ -20,7 +20,7 @@ Memory cost is bounded by the query's result-set size. For the v0.1 supported SQ
 
 **Enables.** Simpler code: no cursor state, no leaf-transition bookkeeping in the executor. No concurrency between iteration and the pager. `Rows.Scan` and `Rows.Next` are trivial.
 
-**Constrains.** A `SELECT *` on a multi-million-row table allocates a multi-million-`record.Value` slice. v0.1's target workloads (small embedded apps, learning, demos) don't hit this. Production-scale workloads would.
+**Constrains.** A `SELECT *` on a multi-million-row table allocates a multi-million-`record.Value` slice. v0.1's target workloads (small embedded apps, demos, local tooling) don't hit this. Large workloads would.
 
 **Reversibility.** Easy. When v0.2 lands a buffer pool + `btree.Cursor`, `RunQuery` switches to returning a streaming iterator and `Rows.Next`/`Scan` walk it lazily. The **public API doesn't change** — only the `Rows` implementation does. Code written against v0.1 continues to work unchanged.
 

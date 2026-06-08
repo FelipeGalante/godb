@@ -6,7 +6,7 @@
 
 ## Context
 
-Building a SQL parser is the kind of work that can grow without bound. Every comparison operator, every aggregate, every join type, every clause adds a grammar production, an AST node, tests, and documentation. Hobby database projects often spend their whole budget on the parser and ship without a storage engine.
+Building a SQL parser is the kind of work that can grow without bound. Every comparison operator, every aggregate, every join type, every clause adds a grammar production, an AST node, tests, and documentation. Small database projects can spend their whole budget on the parser and ship without a storage engine.
 
 GoDB starts from the opposite end. The storage stack (M1–M6) lands first; SQL arrives last among the "internal" layers. By the time M7 starts, every key design decision about what the engine *can* do has already been made — and that set is small ([ADR-0004 (no SQLite compatibility)](0004-no-sqlite-compatibility.md), [ADR-0005 (bottom-up build order)](0005-bottom-up-build-order.md), the [PRD](../prd.md) §4 v0.1 list). The parser exists to *expose* the engine, not to grow it.
 

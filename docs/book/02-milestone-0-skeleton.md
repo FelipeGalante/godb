@@ -69,7 +69,7 @@ There isn't much. Open each file in turn:
 - [`.gitignore`](../../.gitignore) — ignores the built binary, `*.godb` files, profiling output, editor cruft.
 - [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — single job (`test`) on `ubuntu-latest`. Checks out, sets up Go 1.22 with module caching, runs `go vet`, `go test ./...`, `go test -race ./...` in that order. No lint job (we deferred staticcheck until it has something worth catching).
 - [`cmd/godb/main.go`](../../cmd/godb/main.go) — five lines. Prints `godb: SQLite-inspired database engine in Go`. The point isn't the print; it's proving the module path and build pipeline work. The real CLI lands in M10.
-- [`README.md`](../../README.md) — what GoDB is, what it isn't, install/build instructions, roadmap, license. Honest about being pre-alpha.
+- [`README.md`](../../README.md) — what GoDB is, what it isn't, install/build instructions, release status, license. Honest about the current surface.
 - [`LICENSE`](../../LICENSE) — MIT.
 
 The directory tree is also part of the deliverable:

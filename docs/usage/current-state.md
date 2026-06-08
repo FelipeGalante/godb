@@ -164,7 +164,7 @@ The right path is `pkg/godb`. The full tutorial — Open / Exec / Query / Scan, 
 
 ## For the curious: the internal layers, end-to-end
 
-This snippet does the same thing as the embedded API tutorial but calls into `internal/` packages directly. **Not a recommendation for production use** — internals can change without warning between milestones — but a useful map for readers who want to see how the layers compose.
+This snippet does the same thing as the embedded API tutorial but calls into `internal/` packages directly. Internal packages are not part of the public compatibility surface and can change without warning between milestones, but the example is a useful map for readers who want to see how the layers compose.
 
 ```go
 package main

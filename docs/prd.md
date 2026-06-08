@@ -15,11 +15,11 @@ The v0.1 target is a real (though limited) database engine — fixed-size pages,
 
 ### Vision
 
-A serious, portfolio-grade systems project that:
+A focused embedded database engine that:
 
-- Demonstrates database internals end-to-end, from on-disk pages up to SQL execution, in idiomatic Go.
 - Ships a usable embedded database for small local-first applications.
-- Reads as a learning resource: the [book](book/) walks a reader through the implementation as it grows.
+- Exposes the engine through a native Go API, a `database/sql` driver, and a CLI.
+- Keeps the implementation inspectable: the [book](book/) walks through the internals as the engine grows.
 - Stays small. The bar for adding a feature is "does it pass the milestone discipline" — not "is it possible."
 
 ### Non-vision
@@ -32,7 +32,7 @@ GoDB is **not** aiming to be any of the following, and never will:
 - A network database server.
 - A distributed database.
 - An OLAP / analytical engine.
-- A high-concurrency production database.
+- A high-concurrency database.
 - A replacement for PostgreSQL, SQLite, DuckDB, or Badger.
 
 If a requested change would push the project toward any of the above, the answer is no. See [ADR-0004: No SQLite compatibility](adr/0004-no-sqlite-compatibility.md).
@@ -46,8 +46,8 @@ A Go developer building a single-process, single-user application — a CLI tool
 ### Concrete use cases
 
 - **Embedded application database.** A Go binary uses GoDB the way a CLI tool might use BoltDB or modernc.org/sqlite: open a `.godb` file, run a few `CREATE TABLE` and `INSERT` statements, then `SELECT` from the application code.
-- **Learning vehicle.** A developer reading the [book](book/) implements similar engines themselves, or reads the source to understand how a SQLite-style engine is structured.
-- **Internals playground.** A user wants to experiment with page sizes, B+tree fanout, buffer-pool eviction policies, or transaction modes without forking a production engine to do it.
+- **Implementation reference.** A developer reading the [book](book/) and source can understand how GoDB's storage, catalog, SQL, planner, and executor layers fit together.
+- **Internals playground.** A user wants to experiment with page sizes, B+tree fanout, buffer-pool eviction policies, or transaction modes without forking an established engine to do it.
 
 ### Out of scope as users
 
@@ -146,10 +146,10 @@ These are not delayed — they are deliberately never going to be part of GoDB:
 
 If any of these become interesting, they belong in a different project, not GoDB.
 
-## 9. Roadmap reference
+## 9. Future work reference
 
 See:
 
 - [docs/book/](book/) — the chapter-per-milestone narrative.
-- The Roadmap section in the top-level [README](../README.md).
+- [docs/usage/current-state.md](usage/current-state.md) — current release capabilities and next planned work.
 - Spec §21 (recommended implementation order).

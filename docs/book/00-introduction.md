@@ -6,7 +6,7 @@ This is a book about building a database engine. Not "using" one — *building* 
 
 The engine being built is GoDB, the codebase you're sitting in. The book grows alongside the code: every milestone in the project gets a chapter. Reading the book in order, you'll see how a real (if small) embedded relational database comes together — first the file format, then the page abstraction, then variable-length records, then a packed-cell layout, then a B-tree on top of that layout, then a catalog, then a SQL parser, then a planner, then an executor, then a public API. Every layer leans on the one beneath it. Skip a layer and the layer above stops making sense.
 
-The book is not a SQLite walkthrough, not a survey of database internals, not a research paper. It's an honest first-person record of building a specific engine and explaining each layer well enough that you could build your own version. The code is unapologetically Go-flavored — typed errors, package boundaries, table-driven tests, `internal/` for everything implementation-shaped. But the *concepts* (pages, slotted layouts, B-trees, write-ahead logs, query plans) are universal. If you ever write a storage engine in a different language, what you learn here will transfer.
+The book is not a SQLite walkthrough, not a survey of database internals, not a research paper. It's an honest first-person record of building a specific engine and explaining each layer well enough that you could build your own version. The code is unapologetically Go-flavored — typed errors, package boundaries, table-driven tests, `internal/` for everything implementation-shaped. But the *concepts* (pages, slotted layouts, B-trees, write-ahead logs, query plans) are universal. If you ever write a storage engine in a different language, the same ideas will transfer.
 
 ## Who this book is for
 
@@ -67,14 +67,14 @@ A few things to know up front so they don't trip you up later:
 
 ## What this book deliberately doesn't try to do
 
-- It doesn't try to teach you Go. If you don't know what a `*os.File` is or what `defer` does, find a Go tutorial first.
+- It is not a Go tutorial. If you don't know what a `*os.File` is or what `defer` does, find a Go tutorial first.
 - It doesn't try to be a complete database-internals textbook. For that, read *Designing Data-Intensive Applications* (Kleppmann), *Database Internals* (Petrov), or the CMU Database Systems course videos. This book is narrower and code-specific.
 - It doesn't try to compare GoDB to other engines exhaustively. We compare to SQLite (and occasionally Postgres or BoltDB) when the comparison clarifies a decision, and not otherwise.
 - It doesn't try to be exhaustively rigorous on every edge case. The code is rigorous (tests cover the edges); the prose summarizes.
 
 ## A note on humility
 
-This is a small, educational engine. The team that built SQLite spent twenty years tuning what they shipped; the team that built Postgres has been at it for three decades. GoDB isn't trying to be either of those things. The goal is to build something *real* — a database you could genuinely use for a single-user CLI tool — while keeping it small enough that a reader can hold the whole thing in their head.
+GoDB is deliberately bounded. The team that built SQLite spent twenty years tuning what they shipped; the team that built Postgres has been at it for three decades. GoDB isn't trying to be either of those things. The goal is to build a real embedded relational database with a clear compatibility surface, while keeping the implementation small enough that a reader can hold the whole thing in their head.
 
 Every chapter ends with a "What this layer cannot do yet" section that's honest about the gaps. There are many. That's the point: each milestone closes a few of them, and the book grows to match.
 

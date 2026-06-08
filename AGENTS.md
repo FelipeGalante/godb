@@ -1,4 +1,4 @@
-# GoDB — Claude Code Context
+# GoDB — Codex Context
 
 ## Project summary
 

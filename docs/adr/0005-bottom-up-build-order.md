@@ -42,7 +42,7 @@ This ordering also pays off when something breaks. A bug in M8 (executor) is bou
 
 **Top-down: parser-first, then a stub storage that grows up.** The path most hobby DB projects take. Rejected: produces unrunnable code for months and tends to bake parser assumptions into the rest of the stack. The parser is also the easiest thing to over-engineer (see [PRD §7 risk #3](../prd.md)).
 
-**Middle-out: build the catalog and a small executor against an in-memory store, then replace with real storage.** Common in production engines that need to ship a feature quickly. Rejected: GoDB's whole point is the storage layer. Building it last would let the rest of the engine encode assumptions about how storage should behave, then force storage to bend to match.
+**Middle-out: build the catalog and a small executor against an in-memory store, then replace with real storage.** Common in projects that need to ship a feature quickly. Rejected: GoDB's storage layer is foundational. Building it last would let the rest of the engine encode assumptions about how storage should behave, then force storage to bend to match.
 
 **Parallel tracks.** Three streams (storage, parser, API) advancing concurrently. Rejected: this is a solo project; parallelism is impossible without context-switching cost. Sequential is faster end-to-end here.
 

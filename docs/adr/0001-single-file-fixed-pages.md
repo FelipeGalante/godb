@@ -37,7 +37,7 @@ Page 0 is always the database header. Page 1 is reserved for the catalog root (a
 
 **Variable-size pages.** Some engines allow per-table page sizes. Rejected: every algorithm we'd write — B+tree, slotted page, free space tracking — would have to take page size as a parameter, which doubles the cognitive load for no v0.1 benefit. Future versions can revisit by storing per-table page sizes in the catalog if there's a real use case.
 
-**Memory-mapped (mmap) storage.** mmap simplifies code by letting the OS manage paging. Rejected for v0.1: mmap's failure modes (SIGBUS on disk-full, asynchronous page faults inside critical sections, OS-dependent flush semantics) are harder to reason about than explicit `pread`/`pwrite`, and the educational value of writing a real pager is the whole point of M1.
+**Memory-mapped (mmap) storage.** mmap simplifies code by letting the OS manage paging. Rejected for v0.1: mmap's failure modes (SIGBUS on disk-full, asynchronous page faults inside critical sections, OS-dependent flush semantics) are harder to reason about than explicit `pread`/`pwrite`, and the pager is the storage boundary M1 needs to establish.
 
 ## Related
 

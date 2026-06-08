@@ -31,7 +31,7 @@ Variable-length integers (cell keys, payload lengths, row column counts) use LEB
 
 ## Alternatives considered
 
-**Little-endian.** Matches CPU native order on x86, ARM, and Apple Silicon, removing the per-call swap. Rejected: the swap is cheaper than the I/O it accompanies by orders of magnitude, and hex dumps in LE are harder to read out loud. The aesthetic and pedagogical cost is not worth a benchmark difference no profile would ever show.
+**Little-endian.** Matches CPU native order on x86, ARM, and Apple Silicon, removing the per-call swap. Rejected: the swap is cheaper than the I/O it accompanies by orders of magnitude, and hex dumps in LE are harder to read out loud. The readability cost is not worth a benchmark difference no profile would ever show.
 
 **Native (machine-dependent) byte order.** Some embedded databases (LMDB, BoltDB) write in the machine's native byte order, declaring that databases are not portable across endianness. Rejected: not portable across architectures means a `.godb` created on one machine can't necessarily be opened on another. That's a footgun for a tool meant to be shared.
 

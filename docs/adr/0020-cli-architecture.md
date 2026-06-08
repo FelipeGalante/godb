@@ -46,7 +46,7 @@ The purpose-built splitter is a second place that encodes the string-literal and
 
 ## Alternatives considered
 
-**Use cobra (or urfave/cli).** The ergonomic default for Go CLIs — subcommands, flag groups, generated help and completion for free. Rejected: it would be the project's *first* third-party dependency, breaking a property that's both advertised and pedagogically useful (the whole engine is stdlib-only, so a reader can audit every line). The CLI is small enough that `flag` + a `switch` is no real burden, and the saved boilerplate isn't worth the dependency.
+**Use cobra (or urfave/cli).** The ergonomic default for Go CLIs — subcommands, flag groups, generated help and completion for free. Rejected: it would be the project's *first* third-party dependency, breaking a property that's part of GoDB's design contract (the whole engine is stdlib-only, so a reader can audit every line). The CLI is small enough that `flag` + a `switch` is no real burden, and the saved boilerplate isn't worth the dependency.
 
 **Put the logic in `cmd/godb/main.go`.** Simpler file layout, no extra package. Rejected: `main` packages are awkward to unit-test (you end up shelling out to the built binary, which is slow and flaky), and the CLI has real logic worth testing directly — statement splitting, rendering, the SELECT/Exec router. A separate `internal/cli` with injected writers makes all of it testable in-process.
 

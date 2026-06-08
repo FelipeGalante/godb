@@ -13,7 +13,7 @@ GoDB is described as "SQLite-inspired." That description is deliberate and frequ
 
 Either kind of compatibility would be a massive constraint on every design decision. Page format, record format, B+tree node layout, varint encoding, type affinity rules, NULL semantics, collation, function library — all of these would either have to clone SQLite or document precisely how they diverge.
 
-GoDB's value proposition (a small, readable, idiomatic Go database engine usable as a learning vehicle and an embedded store) does not depend on compatibility with anything. The cost would be enormous; the benefit would be marginal.
+GoDB's value proposition (a small, readable, idiomatic Go database engine usable as an embedded store) does not depend on compatibility with anything. The cost would be enormous; the benefit would be marginal.
 
 ## Decision
 
@@ -32,7 +32,7 @@ This is not a "we might add compatibility later" — adding it would mean essent
 
 **Enables.** Every layer is free to make the choice that's best for GoDB's goals. Big-endian on disk ([ADR-0002](0002-big-endian-on-disk.md)). LEB128 varint ([ADR-0009](0009-leb128-uvarint.md)). Distinct NULL/empty-text encodings ([ADR-0008](0008-null-and-empty-text-distinct.md)). A small reserved row-version byte ([ADR-0007](0007-explicit-kind-byte-values.md)). None of these are constrained by what SQLite chose.
 
-The book can teach concepts without saying "and here's why SQLite does it slightly differently." The CLI's `inspect` commands can show GoDB-specific structures without trying to mimic `sqlite3`'s output.
+The book can explain concepts without saying "and here's why SQLite does it slightly differently." The CLI's `inspect` commands can show GoDB-specific structures without trying to mimic `sqlite3`'s output.
 
 **Constrains.** GoDB cannot inherit any SQLite tooling. No `sqlite3` CLI, no SQLite-aware ORMs, no SQLite test corpus. Each of these has to be built (or imported from elsewhere) if and when needed.
 
