@@ -60,7 +60,7 @@ The catalog could have been a hand-rolled flat file, a JSON sidecar, a fixed all
 - Every layer above storage already understands B+trees. No new index structure to build, test, or document.
 - Lookups by object id (the catalog's natural key) become O(log n) for free, even though M6 in practice has a very small number of tables.
 - Inserts (CreateTable) scale naturally as the catalog grows; the same split logic from M5 keeps the catalog tree balanced.
-- "The catalog is recursive" is a strong pedagogical point. A reader learns once that B+trees store sorted-key data; the catalog then teaches that *all* data — even metadata — is stored in B+trees.
+- "The catalog is recursive" is a strong design point. Once B+trees store sorted-key data, the catalog shows that *all* data — even metadata — can be stored in B+trees.
 
 The only structural difference from a regular table tree is **what's in the cell payloads**: catalog rows (encoded `Object`s) instead of user rows. The btree layer doesn't know or care.
 

@@ -1,6 +1,6 @@
 # Building a Database Engine in Go from Scratch
 
-A chapter-per-milestone narrative for the GoDB project. Read it alongside the commit history: each milestone-chapter explains the concepts behind a layer, then walks through the code that implements it.
+A chapter-per-milestone internals companion for the GoDB project. Read it alongside the commit history: each milestone-chapter explains the concepts behind a layer, then walks through the code that implements it.
 
 ## How to read this book
 

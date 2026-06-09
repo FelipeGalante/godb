@@ -135,7 +135,7 @@ WHERE compounding with `AND` / `OR` is not supported in v0.1; the parser rejects
 
 Type mismatches (e.g. scanning an `INTEGER` column into `*string`) return `godb.ErrScanTypeMismatch`. The destination count must match the result's column count (`godb.ErrScanWrongCount` otherwise).
 
-v0.1 does **no implicit conversions**. Unlike `database/sql`, scanning an `INTEGER` into `*string` is an error rather than a stringification. Adding optional conversions is on the v0.2+ roadmap.
+v0.1 does **no implicit conversions**. Unlike `database/sql`, scanning an `INTEGER` into `*string` is an error rather than a stringification. Optional conversions are deferred to later releases.
 
 For columns that may be NULL, use `*any`:
 
@@ -284,10 +284,10 @@ Expected output:
 3 Jane active=true
 ```
 
-## What's coming
+## Current and future surfaces
 
-- **M9** adds an optional `database/sql/driver` wrapper so you can `sql.Open("godb", "app.godb")` and use the standard `database/sql` package with its full ecosystem (`Stmt.Prepare`, conn pooling, the SQL Cookbook of patterns).
-- **M10** ships the CLI (interactive shell, `inspect`, `check`).
-- **v0.2** brings transactions, `UPDATE`/`DELETE`, secondary indexes, a buffer pool, and streaming Rows.
+- **`database/sql`** is available through `pkg/driver`, so you can `sql.Open("godb", "app.godb")` and use the standard `database/sql` package with prepared statements, connection pooling, and nullable scan types.
+- **The CLI** ships as the `godb` binary with an interactive shell, `inspect`, `check`, `dump`, `exec`, and `query`.
+- **v0.2 planned work** includes transactions, `UPDATE`/`DELETE`, secondary indexes, a buffer pool, and streaming rows.
 
-See the [status table in the usage index](README.md) for the milestone roadmap.
+See the [usage index](README.md) and [current-state guide](current-state.md) for the current release surface and planned work.

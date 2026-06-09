@@ -52,7 +52,7 @@ parseWhere()          → identifier, "=", parseExpression()
 
 Each function consumes tokens off the lexer, returns an AST node, and reports errors with the source position attached. The structure of the code mirrors the structure of the grammar. Reading the parser top to bottom is a guided tour of "what SQL we accept."
 
-The alternative was a generated parser (`goyacc`, `participle`, or a PEG library). Those are great when the grammar is large or changes often. GoDB's grammar is neither. Hand-written code is easier to read, easier to teach in this book, and adds no build-time dependency. [ADR-0015](../adr/0015-sql-grammar-scope.md) records the choice.
+The alternative was a generated parser (`goyacc`, `participle`, or a PEG library). Those are great when the grammar is large or changes often. GoDB's grammar is neither. Hand-written code is easier to read, easier to walk through in this book, and adds no build-time dependency. [ADR-0015](../adr/0015-sql-grammar-scope.md) records the choice.
 
 ### Why our grammar is small (and how we reject the rest)
 

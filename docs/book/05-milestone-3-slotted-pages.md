@@ -201,6 +201,6 @@ You can now put many typed rows in one page, find them by primary key, and persi
 
 The answer is a **B+tree**: a tree of pages where the root and the internal nodes guide a search to the right leaf, and inserts that overflow a leaf get handled by splitting the leaf into two and adding a new separator key to the parent.
 
-M4 (the next milestone) builds the easy version: a B+tree that only ever has one leaf — exactly one page — so we never actually have to split. It's a tiny step up from M3, but it establishes the `Tree` type, gives the catalog (in the future) a place to store a root page ID, and lays out the `Insert / Get / Scan` API that M5's multi-page version will inherit. M5 then teaches the tree to split and grow.
+M4 (the next milestone) builds the easy version: a B+tree that only ever has one leaf — exactly one page — so we never actually have to split. It's a tiny step up from M3, but it establishes the `Tree` type, gives the catalog (in the future) a place to store a root page ID, and lays out the `Insert / Get / Scan` API that M5's multi-page version will inherit. M5 then adds split and growth behavior.
 
 That's where the next chapter picks up.

@@ -85,7 +85,7 @@ func (e *Executor) RunQuery(plan planner.Plan, args []any) (*Rows, error)
 
 The interesting choice for `RunQuery`: should the result stream lazily (the executor returns an iterator that produces rows on demand as `Rows.Next` is called), or materialize eagerly (the executor walks the whole tree, accumulates every row into a slice, returns the slice wrapped in `Rows`)?
 
-Streaming is the "right" answer for production engines. A `SELECT *` on a billion-row table shouldn't allocate a billion-row slice. The user can stop reading after a few hundred rows; lazy iteration only does the work that's actually consumed.
+Streaming is the usual answer for large engines. A `SELECT *` on a billion-row table shouldn't allocate a billion-row slice. The user can stop reading after a few hundred rows; lazy iteration only does the work that's actually consumed.
 
 Streaming is also more code. It requires a `btree.Cursor` (a stateful walker that survives across calls), and the cursor has to handle leaf-chain transitions in the middle of an iteration. v0.1 doesn't have one. Building one is M5+ territory we deferred.
 
@@ -224,7 +224,7 @@ Each has a milestone home.
 
 - The Go [`database/sql`](https://pkg.go.dev/database/sql) package documentation — the conventional shape `godb.DB` mirrors.
 - SQLite's [query planner overview](https://www.sqlite.org/queryplanner.html) — for the planner side, much more sophisticated than v0.1's but the same shape.
-- Postgres's docs on the [planner/optimizer](https://www.postgresql.org/docs/current/planner-optimizer.html) — the production-grade reference for what these layers can grow into.
+- Postgres's docs on the [planner/optimizer](https://www.postgresql.org/docs/current/planner-optimizer.html) — a mature reference for what these layers can grow into.
 - *Database Internals* (Petrov), chapter 7 (Query Processing) — the textbook treatment of parser → planner → executor.
 
 ## Where the next chapter picks up

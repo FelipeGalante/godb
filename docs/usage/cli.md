@@ -193,7 +193,7 @@ Text values are single-quoted with `''` escaping (`O'Brien` → `'O''Brien'`), b
 
 ## `inspect` — read the on-disk structures
 
-`inspect` opens the file read-only and shows you what's actually on disk. It's the learning tool: pair it with [chapter 03 (pager)](../book/03-milestone-1-pager.md), [chapter 05 (slotted pages)](../book/05-milestone-3-slotted-pages.md), and [chapter 07 (B+tree)](../book/07-milestone-5-multi-page-btree.md).
+`inspect` opens the file read-only and shows you what's actually on disk. It pairs well with [chapter 03 (pager)](../book/03-milestone-1-pager.md), [chapter 05 (slotted pages)](../book/05-milestone-3-slotted-pages.md), and [chapter 07 (B+tree)](../book/07-milestone-5-multi-page-btree.md) when you want to follow the file format from bytes to tables.
 
 ### `inspect header`
 

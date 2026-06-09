@@ -14,7 +14,7 @@ M9 fixes that. It adds:
 4. **`DB.Sync()`** for an explicit durability checkpoint without closing.
 5. **Multi-table integration tests** through the public API.
 
-This is a polish milestone. The loop already worked; M9 makes it production-shaped enough that M10 (CLI) can build on top and M11 (v0.1 release) can ship.
+This is a polish milestone. The loop already worked; M9 gives it enough public API shape that M10 (CLI) can build on top and M11 (v0.1 release) can ship.
 
 ## Foundation
 

@@ -6,7 +6,7 @@
 
 ## Context
 
-A buffer pool sits between the pager and everything above it. Its job is to cache pages in memory so that repeated reads or writes to the same page don't hit disk every time. Production engines (SQLite, Postgres, MySQL, RocksDB, BoltDB) all have one. They typically include:
+A buffer pool sits between the pager and everything above it. Its job is to cache pages in memory so that repeated reads or writes to the same page don't hit disk every time. Established engines (SQLite, Postgres, MySQL, RocksDB, BoltDB) all have one. They typically include:
 
 - A frame table (page-id → in-memory page).
 - A pin/unpin protocol so callers can hold a page across operations.
@@ -39,7 +39,7 @@ This decision also defers an architectural question: when the buffer pool arrive
 
 **A trivial map-based cache (no eviction, no pin/unpin).** "Page cache lite." Rejected: ends up being either a footgun (callers think they have caching but only get it sometimes) or a fake (only correct for tests where the working set is small). Better to have nothing than something misleading.
 
-**Memory-map the file and let the OS handle caching.** Rejected for the same reasons as in [ADR-0001](0001-single-file-fixed-pages.md): mmap's failure modes are hard to reason about, and writing a real pager is part of the project's educational point.
+**Memory-map the file and let the OS handle caching.** Rejected for the same reasons as in [ADR-0001](0001-single-file-fixed-pages.md): mmap's failure modes are hard to reason about, and writing a real pager keeps page ownership explicit.
 
 ## Related
 

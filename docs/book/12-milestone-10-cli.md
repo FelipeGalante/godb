@@ -24,7 +24,7 @@ This is a UI milestone. Almost nothing new happens in the engine; the CLI is a t
 Three different jobs hide under "the CLI":
 
 1. **Running SQL.** The obvious one — `exec` a script, `query` a one-shot, or type interactively. This is pure UI over the public API; the engine already does all the work.
-2. **Inspecting internals.** `inspect` and `check` don't go through SQL at all. They open the pager and catalog directly and read the bytes — the file header, a page's slotted-page header, the shape of a B+tree, the validity of every tree. This is the part a *learner* reaches for: "show me what's actually on disk."
+2. **Inspecting internals.** `inspect` and `check` don't go through SQL at all. They open the pager and catalog directly and read the bytes — the file header, a page's slotted-page header, the shape of a B+tree, the validity of every tree. This is the path for answering: "show me what's actually on disk."
 3. **Round-tripping.** `dump` emits SQL that, fed back through `exec`, recreates the database. It's a backup format, a migration tool, and a test that the engine's own output reloads cleanly — all at once.
 
 A general-purpose database CLI (think `sqlite3` or `psql`) does far more — dot-commands for everything, output modes, `.import`, readline history, tab completion. GoDB's CLI is deliberately the minimal useful set plus a `-format` flag. The [ADR](../adr/0020-cli-architecture.md) records why.

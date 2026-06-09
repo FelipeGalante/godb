@@ -20,7 +20,7 @@ surface. Go's tooling enforces that *importability* line (you cannot import
 another module's `internal/`), but it says nothing about *stability* — whether
 `pkg/godb`'s function signatures, the CLI's flags, or the on-disk format are
 allowed to change between releases. The book and README repeatedly call v0.1
-"small and educational"; we need to be precise about what that means for someone
+"small" or "bounded"; we need to be precise about what that means for someone
 building on it.
 
 There's also a concrete pre-1.0 question. GoDB is `v0.x`. Under semver, the

@@ -2,14 +2,14 @@
 
 A SQLite-inspired embedded relational database engine in Go.
 
-GoDB is an educational, portfolio-grade project that builds a real database engine — page-based storage, B+tree indexing, SQL parsing, query execution — from the ground up.
+GoDB stores relational data in a single `.godb` file and exposes it through a native Go API, a `database/sql` driver, and a command-line interface.
 
 ## What GoDB is
 
 - A single-file embedded database (`.godb`).
 - Written in Go, with a developer-friendly API.
 - SQLite-inspired in spirit and architecture.
-- A serious learning vehicle for storage internals.
+- Built around page-based storage, B+tree indexing, SQL parsing, and query execution.
 
 ## What GoDB is not
 
@@ -17,26 +17,11 @@ GoDB is an educational, portfolio-grade project that builds a real database engi
 - Not compatible with the SQLite file format.
 - Not compatible with the full SQLite SQL dialect.
 - Not a network server, not distributed, not OLAP.
-- Not a production-grade database.
+- Not a replacement for PostgreSQL, SQLite, DuckDB, or Badger.
 
 ## Project status
 
-**v0.1.0 — first tagged release.** GoDB has a native Go API (`pkg/godb`: `Open` / `Exec` / `Query` / `Rows.Scan`), a `database/sql/driver` wrapper (`pkg/driver`: `sql.Open("godb", path)`), and a command-line interface (the `godb` binary: shell, `exec`, `query`, `inspect`, `check`, `dump`), with cross-table integration coverage. The supported SQL (`CREATE TABLE`, `INSERT`, `SELECT [WHERE id = ?]`) runs end-to-end against a `.godb` file. Multiple tables of arbitrary size survive close/reopen cycles. It remains a small, educational engine — see the [v0.1 limitations](#v01-limitations) and the [roadmap](#roadmap-abbreviated) below, the [CHANGELOG](CHANGELOG.md) for what shipped, and the [development book](docs/book/) for the engineering narrative.
-
-## Roadmap (abbreviated)
-
-- M0 — project skeleton ✅
-- M1 — pager (file format, page read/write/allocate, header validation) ✅
-- M2 — record encoding ✅
-- M3 — slotted page ✅
-- M4 — single-page B+tree ✅
-- M5 — multi-page B+tree (splits, descent, root grow) ✅
-- M6 — catalog (named tables, persisted metadata) ✅
-- M7 — SQL lexer + parser (small grammar, recursive descent) ✅
-- M8 — public Go API + planner + executor (the loop closes) ✅
-- M9 — polish + `database/sql/driver` + integration tests ✅
-- M10 — CLI (shell, exec, query, inspect, check, dump) ✅
-- M11 — v0.1 release ✅
+**v0.1.0 — first tagged release.** GoDB has a native Go API (`pkg/godb`: `Open` / `Exec` / `Query` / `Rows.Scan`), a `database/sql/driver` wrapper (`pkg/driver`: `sql.Open("godb", path)`), and a command-line interface (the `godb` binary: shell, `exec`, `query`, `inspect`, `check`, `dump`), with cross-table integration coverage. The supported SQL (`CREATE TABLE`, `INSERT`, `SELECT [WHERE id = ?]`) runs end-to-end against a `.godb` file. Multiple tables of arbitrary size survive close/reopen cycles. See the [v0.1 limitations](#v01-limitations), the [current-state guide](docs/usage/current-state.md), and the [CHANGELOG](CHANGELOG.md) for release details.
 
 ## Install
 
@@ -176,7 +161,7 @@ See [`docs/usage/`](docs/usage/) for the full guides — [`embedded-api.md`](doc
 
 ## v0.1 limitations
 
-GoDB v0.1 is intentionally small. These are deliberate scope decisions, not bugs — each is addressed in a later version (see the [v0.2 roadmap](docs/usage/current-state.md#whats-next)):
+GoDB v0.1 has a deliberately bounded feature set. These are release constraints, not bugs — future work is tracked in the [current-state guide](docs/usage/current-state.md#whats-next):
 
 - **SQL:** no `UPDATE` / `DELETE` / `ALTER TABLE` / `DROP TABLE`; no `JOIN` / `GROUP BY` / `ORDER BY` / `LIMIT`; `WHERE` only on the primary key, no compound `AND`/`OR`, no operators other than `=`.
 - **No transactions** — `Begin` returns `godb.ErrTransactionsUnsupported`; writes are autocommit-only.
@@ -199,10 +184,10 @@ make clean   # remove binary and *.godb files
 
 ## Documentation
 
-- [Usage guide](docs/usage/) — how to use godb today (and where on the roadmap each feature lands). Start here if you want to *run* godb rather than read its internals.
+- [Usage guide](docs/usage/) — how to use godb today and what the current release supports. Start here if you want to *run* godb rather than read its internals.
 - [Product Requirements Document](docs/prd.md) — what GoDB is, who it's for, what v0.1 has to do.
 - [Architecture Decision Records](docs/adr/) — the load-bearing engineering decisions and the tradeoffs behind them.
-- [The development book](docs/book/) — a chapter-per-milestone narrative covering the database-internals concepts and the code that implements them. Start with the [introduction](docs/book/00-introduction.md).
+- [The development book](docs/book/) — an internals companion covering the database-engine concepts and the code that implements them. Start with the [introduction](docs/book/00-introduction.md).
 - [CHANGELOG](CHANGELOG.md) — what shipped in each release.
 - [docs/](docs/) — entry point for everything documentation.
 

@@ -4,7 +4,7 @@
 
 By the end of [Chapter 05](05-milestone-3-slotted-pages.md) we can pack many typed rows into a single 4 KB page, find them by key in O(log n) via the cell directory, and tell the caller "the page is full" when no more cells fit. Everything we have so far operates on *one page*. A real database is not one page — it's many. A table that grows past ~50 rows blows past `ErrPageFull` and we have nowhere to put the next row.
 
-The standard answer is a **B+tree**: a tree of pages where the leaves hold the data, the internal nodes hold separator keys and child pointers, and the search for a key walks from the root down to a single leaf in O(log n) total page reads. Production engines (SQLite, Postgres, MySQL, etc.) all use B+trees as their primary index structure. We are going to build one too.
+The standard answer is a **B+tree**: a tree of pages where the leaves hold the data, the internal nodes hold separator keys and child pointers, and the search for a key walks from the root down to a single leaf in O(log n) total page reads. Established engines (SQLite, Postgres, MySQL, etc.) all use B+trees as their primary index structure. We are going to build one too.
 
 But not all of one today. M4 builds the **smallest meaningful B+tree**: a tree whose root *is* its only leaf. Height zero. When the leaf fills, `Insert` returns `ErrPageFull` — we do not yet split. That's it.
 
@@ -205,7 +205,7 @@ Each of these has a milestone home. None of them needs to bleed into M4.
 
 You can now store many typed rows in a tree, find them by primary key, scan them in order, and reopen the database file later to find them all again. The thing you cannot do is grow past one leaf.
 
-M5 (the next chapter) fixes that. It teaches the Tree to **split**: when `InsertCell` returns `ErrPageFull` on the target leaf, the Tree splits the leaf into two leaves, picks a separator key, and inserts that separator (plus a pointer to the new right-hand leaf) into the parent internal page. If the parent overflows, it splits too, propagating up. If the *root* overflows, the Tree creates a new root with the old root and the new sibling as its two children — and the tree's height grows by one.
+M5 (the next chapter) fixes that. It gives the Tree the ability to **split**: when `InsertCell` returns `ErrPageFull` on the target leaf, the Tree splits the leaf into two leaves, picks a separator key, and inserts that separator (plus a pointer to the new right-hand leaf) into the parent internal page. If the parent overflows, it splits too, propagating up. If the *root* overflows, the Tree creates a new root with the old root and the new sibling as its two children — and the tree's height grows by one.
 
 To do that M5 needs the internal-page cell format (different from the leaf format — it stores child pointers, not row payloads), a descent algorithm (`Insert`/`Get`/`Scan` all start at the root and walk down through internal pages to the right leaf), and a tree-walking `Validate` that checks invariants across levels.
 

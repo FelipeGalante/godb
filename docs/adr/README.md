@@ -2,7 +2,7 @@
 
 This directory captures the load-bearing engineering decisions made in GoDB — the ones that, if you didn't know the reasoning, you would be tempted to undo and regret it. Each ADR records the context that forced a choice, the choice itself, the alternatives considered, and the consequences accepted.
 
-ADRs are short, dated, immutable documents. They are not the same as the [PRD](../prd.md) (which describes what the product is) or the [book](../book/) (which teaches the surrounding concepts). They sit between those: "here is the choice we made, and here is why someone reading the code six months later shouldn't undo it."
+ADRs are short, dated, immutable documents. They are not the same as the [PRD](../prd.md) (which describes what the product is) or the [book](../book/) (which explains the surrounding concepts). They sit between those: "here is the choice we made, and here is why someone reading the code six months later shouldn't undo it."
 
 ## Index
 

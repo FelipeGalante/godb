@@ -115,7 +115,7 @@ Almost nothing, which is the point.
 - **[`README.md`](../../README.md)** — the `Install (dev)` section becomes a real
   `Install` section (`go install` for the CLI, `go get` for the library, `from
   source` underneath); the status line moves from "pre-alpha" to "v0.1.0"; a
-  consolidated `v0.1 limitations` section; the roadmap ticks M11.
+  consolidated `v0.1 limitations` section; the release status moves to M11.
 - **[ADR-0021](../adr/0021-versioning-and-compatibility.md)** (new) — the policy
   above.
 - Docs index/status refreshes (`docs/book/`, `docs/usage/`) and a `CLAUDE.md`
